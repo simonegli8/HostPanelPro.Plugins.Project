@@ -36,6 +36,7 @@
         <PackageReadmeFile Condition="$(PackAsTool) != 'true'">README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/simonegli8/WebHostingCP</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageTags>HostPanelPro, Plugins, web hosting, control panel</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <IncludeSymbols>true</IncludeSymbols>
