@@ -83,11 +83,11 @@ public class PluginManager
     const bool DebuggingFeeds = true;
     public static List<string> Feeds = DebuggingFeeds ?
         new List<string>() {
-            "https://simonegli8.github.com/HostPanelPro.Plugins/plugins",
-            "http://hostpanelpro.mooo.com/plugins" } :
+            "https://simonegli8.github.io/HostPanelPro.Plugins",
+            "http://hostpanelpro.mooo.com" } :
         new List<string>() {
-            "https://simonegli8.github.com/HostPanelPro.Plugins/plugins",
-            "http://hostpanelpro.mooo.com/plugins" };
+            "https://simonegli8.github.io/HostPanelPro.Plugins",
+            "http://hostpanelpro.mooo.com" };
     public static CancellationTokenSource Cancel = new CancellationTokenSource();
     public static HttpClientHandler Proxy { get; set; } = null;
     public static AsyncLock AsyncLock = new AsyncLock();
@@ -244,7 +244,7 @@ public class PluginManager
         var infoFiles = Directory.EnumerateFiles(Path.Combine(root, id.EncodedId, "Info"), "*.*", SearchOption.TopDirectoryOnly);
         var readmeMarkdown = infoFiles.FirstOrDefault(md => md.EndsWith(".md", StringComparison.OrdinalIgnoreCase));
         var info = JsonConvert.DeserializeObject<PluginInfo>(File.ReadAllText(infoFiles.FirstOrDefault(vs => vs.EndsWith(".json"))));
-        info.Name = id.Name;
+        info.Id = id.Name;
         info.Image = infoFiles.FirstOrDefault(img => IsImage(img));
         info.ReadmeMarkdown = File.Exists(info.ReadmeMarkdown) ? File.ReadAllText(info.ReadmeMarkdown) : "";
         info.IsInstalled = true;
@@ -504,8 +504,8 @@ public class PluginManager
         // Parse the directory listing (Apache/nginx autoindex style) for subdirectory links,
         // which correspond one-to-one with the available plugin ids.
         path = path.Trim('/') + "/";
-        root = root.Trim('/');
-        root = $"/{root}/{path}";
+        root = root.TrimEnd('/');
+        root = $"{root}/{path}";
         var items = new HashSet<DirectoryItem>();
         var hrefRegex = new Regex(@"<a\s+href\s*=\s*[""'](?<path>[^""']+)[""']\s*(?<hpp>class\s*=\s*[""']hostpanelpro-directory-link[""']\s*)?>(?<name>.*?)</a>", RegexOptions.IgnoreCase);
         foreach (Match match in hrefRegex.Matches(html))
@@ -513,7 +513,7 @@ public class PluginManager
             var href = match.Groups["path"].Value;
             var name = WebUtility.UrlDecode(match.Groups["name"].Value);
             if (!(href.EndsWith(".7z") ||
-                (href.EndsWith(".zip") ||
+                href.EndsWith(".zip") ||
                 href.EndsWith(".md") ||
                 href.EndsWith(".json") ||
                 href.EndsWith(".config") ||
@@ -522,9 +522,11 @@ public class PluginManager
                 href.EndsWith(".png") ||
                 href.EndsWith(".webp") ||
                 href.EndsWith(".gif") ||
+                href.EndsWith(".jpg") ||
+                href.EndsWith(".jpeg") ||
                 href.EndsWith("/")) ||
                 href == path || href.Contains('?') || href.Contains('#') ||
-                href.StartsWith("..") || href.StartsWith("http://") || href.StartsWith("https://")))
+                href.StartsWith("..") || href.StartsWith("http://") || href.StartsWith("https://"))
             {
                 continue;
             }
@@ -548,8 +550,8 @@ public class PluginManager
                 }
             }
             if (name != item.Name) continue;
-            if (item.Path == null && match.Groups["hpp"].Success) item.FullName = $"/{root}{item.Name}";
-            else if (item.Path.TrimEnd('/').EndsWith(path)) item.FullName = href;
+            if (item.Path == null && match.Groups["hpp"].Success) item.FullName = $"{root}{item.Name}";
+            else if (item.Path != null && item.Path.TrimEnd('/').EndsWith(path)) item.FullName = href;
             else continue;
             if (!items.Contains(item))
             {
@@ -566,12 +568,18 @@ public class PluginManager
     }
     static async Task<string> GetStringAsync(string url)
     {
-        var handler = Proxy;
-        using var client = handler != null ? new HttpClient(handler) : new HttpClient();
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await client.SendAsync(request, Cancel.Token);
-        if (!response.IsSuccessStatusCode) return "";
-        return await response.Content.ReadAsStringAsync();
+        try
+        {
+            var handler = Proxy;
+            using var client = handler != null ? new HttpClient(handler) : new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await client.SendAsync(request, Cancel.Token);
+            if (!response.IsSuccessStatusCode) return "";
+            return await response.Content.ReadAsStringAsync();
+        } catch
+        {
+            throw;
+        }
     }
     public static IAsyncEnumerable<PluginId> GetAvailablePlugins()
     {
@@ -628,14 +636,17 @@ public class PluginManager
     static bool IsImage(string img) => img.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
                     img.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ||
                     img.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase) ||
+                    img.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                    img.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                    img.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
                     img.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
     class PluginInfoResult
     {
         public PluginId Id;
         public string[] Get;
         public string Image;
-        public string InfoJson => Get[0];
-        public string Readme => Get[1];
+        public string InfoJson => Get[1];
+        public string Readme => Get[0];
         PluginInfo info = null;
         public PluginInfo Info => info ?? JsonConvert.DeserializeObject<PluginInfo>(InfoJson);
         public Task<string> GetInfo;
@@ -655,16 +666,19 @@ public class PluginManager
 
         var files = TaskExtensions.WhenEach(tasks)
             .SelectMany(async (dir, cancel) => (await dir).DirectoryItems
-                .Select(item => new
+                .Select(item =>
                 {
-                    Feed = dir.Result.Feed,
-                    Index = dir.Result.Index,
-                    Id = PluginId.ParseEncoded(item.Name),
-                    Link = item.FullName,
-                    DowloadLink = new Uri(dir.Result.Feed).Authority + item.FullName
+                    var url = new Uri(dir.Result.Feed);
+                    return new
+                    {
+                        dir.Result.Feed,
+                        dir.Result.Index,
+                        Id = PluginId.ParseEncoded(Path.GetFileNameWithoutExtension(item.Name)),
+                        Link = item.FullName,
+                        DowloadLink = $"{url.Scheme}://{url.Authority}{item.FullName}"
+                    };
                 }));
 
-        var download = new Download();
         var getPlugins = files
             .GroupBy(link => link.Id.Name)
             .SelectMany(plugin => plugin
@@ -678,7 +692,7 @@ public class PluginManager
                 })
                 .Select(links => new
                 {
-                    Id = links.Id,
+                    links.Id,
                     Newest = links.Files.FirstOrDefault()?.Id.Version,
                     Image = links.Files.FirstOrDefault(img => IsImage(img.Link))?.DowloadLink,
                     ReadmeMarkdown = links.Files.FirstOrDefault(md => md.Link.EndsWith(".md", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
@@ -701,7 +715,7 @@ public class PluginManager
                 {
                     var plugin = await task;
                     var info = plugin.Info;
-                    info.Name = plugin.Id.ToString();
+                    info.Id = plugin.Id.Id;
                     info.Image = plugin.Image;
                     info.ReadmeMarkdown = plugin.Readme;
                     return info;
@@ -718,7 +732,7 @@ public class PluginManager
     }
     public static async Task<PluginInfo> GetAvailablePluginInfoAsync(string pluginId) =>
         await GetAvailablePluginsInfos()
-            .Where(p => p.Name == pluginId)
+            .Where(p => p.Id == pluginId)
             .FirstOrDefaultAsync();
 
     public static void PublishDirectoryIndex(string dir, string root)
@@ -864,7 +878,7 @@ public class PluginManager
         where T : class
     {
         return (assemblies ??
-            $"{plugin.Name}.Server.dll,{plugin.Name}.EnterpriseServer.dll,{plugin.Name}.Portal.dll")
+            $"{plugin.Id}.Server.dll,{plugin.Id}.EnterpriseServer.dll,{plugin.Id}.Portal.dll")
             .Split(',', ';')
             .Select(a => a.Trim())
             .Where(a => !string.IsNullOrEmpty(a))
