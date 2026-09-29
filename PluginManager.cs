@@ -80,8 +80,14 @@ public class DirectoryItem
 public class PluginManager
 {
     public const string AutoDir = ".auto-installers";
-
-    public static List<string> Feeds = new List<string>() { "http://hostpanelpro.mooo.com/plugins" };
+    const bool DebuggingFeeds = true;
+    public static List<string> Feeds = DebuggingFeeds ?
+        new List<string>() {
+            "https://simonegli8.github.com/HostPanelPro.Plugins/plugins",
+            "http://hostpanelpro.mooo.com/plugins" } :
+        new List<string>() {
+            "https://simonegli8.github.com/HostPanelPro.Plugins/plugins",
+            "http://hostpanelpro.mooo.com/plugins" };
     public static CancellationTokenSource Cancel = new CancellationTokenSource();
     public static HttpClientHandler Proxy { get; set; } = null;
     public static AsyncLock AsyncLock = new AsyncLock();
@@ -564,7 +570,7 @@ public class PluginManager
         using var client = handler != null ? new HttpClient(handler) : new HttpClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using var response = await client.SendAsync(request, Cancel.Token);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode) return "";
         return await response.Content.ReadAsStringAsync();
     }
     public static IAsyncEnumerable<PluginId> GetAvailablePlugins()
