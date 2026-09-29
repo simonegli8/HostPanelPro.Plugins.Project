@@ -1,0 +1,78 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!--<TargetFramework>netstandard2.0;net10.0</TargetFramework>-->
+        <PackAsTool Condition="$(PackToTool) != 'true'">false</PackAsTool>
+        <PackAsTool Condition="$(PackToTool) == 'true'">true</PackAsTool>
+        <TargetFrameworks Condition="$(PackAsTool) == 'true'">net10.0</TargetFrameworks>
+		<TargetFrameworks Condition="$(PackAsTool) != 'true'">netstandard2.0</TargetFrameworks>
+        <LangVersion>14</LangVersion>
+        <Nullable>disable</Nullable>
+
+        <PackageId Condition="$(PackAsTool) == 'true'">$(AssemblyName).Maker</PackageId>
+        <PackageId Condition="$(PackAsTool) != 'true'">$(AssemblyName)</PackageId>
+        <DefineConstants Condition="$(PackAsTool) == 'true'">$(DefineConstants);PackAsTool</DefineConstants>
+        <!--<GeneratePackageOnBuild>true</GeneratePackageOnBuild>-->
+        <Version>1.0.0.0</Version>
+        <IncludeContentInPack>true</IncludeContentInPack>
+        <IsPackable>true</IsPackable>
+        <AssemblyTitle>HostPanelPro Plugins</AssemblyTitle>
+        <AssemblyName>HostPanelPro.Plugins</AssemblyName>
+        <Product>HostPanelPro Plugins</Product>
+        <Copyright>Copyright © 2026</Copyright>
+        <OutputType Condition="$(PackAsTool) == 'true'">Exe</OutputType>
+        <OutputType Condition="$(PackAsTool) != 'true'">Library</OutputType>
+        <ApplicationIcon>Resources/plugin.ico</ApplicationIcon>
+        <LangVersion>14</LangVersion>
+        <!--<GenerateBootstrapperOnBuild>true</GenerateBootstrapperOnBuild>-->
+
+        <Title>HostPanelPro Plugins</Title>
+        <Authors>simonegli8</Authors>
+        <Company>Estrellas de Esperanza</Company>
+        <Description>A tool to pack plugins for HostPanelPro</Description>
+        <Copyright>Estrellas de Esperanza</Copyright>
+        <PackageProjectUrl>https://github.com/simonegli8/WebHostingCP</PackageProjectUrl>
+        <PackageReadmeFile Condition="$(PackAsTool) == 'true'">tools/net10.0/any/README.md</PackageReadmeFile>
+        <PackageReadmeFile Condition="$(PackAsTool) != 'true'">README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/simonegli8/WebHostingCP</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>HostPanelPro, Plugins, web hosting, control panel</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <IncludeSymbols>true</IncludeSymbols>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+        <ToolCommandName>make-hpp-plugin</ToolCommandName>
+        <PackageOutputPath>..\..\Lib</PackageOutputPath>
+        <RestoreSources>$(RestoreSources);..\..\Lib;https://api.nuget.org/v3/index.json</RestoreSources>
+        <DebugType>portable</DebugType>
+
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="EstrellasDeEsperanza.AsyncLock" Version="4.1.6" />
+        <PackageReference Include="Markdig" Version="1.4.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="SharpCompress" Version="0.50.4" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$(TargetFramework) == 'netstandard2.0'">
+        <PackageReference Include="System.Linq.AsyncEnumerable" Version="10.0.10" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$(PackAsTool) != 'true'">
+        <ProjectReference Include="..\HostPanelPro.Providers.Base\HostPanelPro.Providers.Base.csproj" />
+        <ProjectReference Include="..\HostPanelPro.Web.Clients\HostPanelPro.Web.Clients.csproj" />
+        <ProjectReference Include="..\HostPanelPro.Web.Services\HostPanelPro.Web.Services.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Resources\" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <None Condition="$(PackAsTool) != 'true'" Include="README.md" Pack="true" PackagePath="/" />
+        <None Condition="$(PackAsTool) == 'true'" Include="README.md" Pack="true" PackagePath="/tools/net10.0/any/" />
+    </ItemGroup>
+
+</Project>

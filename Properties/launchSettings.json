@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "HostPanelPro.Plugins": {
+      "commandName": "Project",
+      "commandLineArgs": "Plugins\\* www",
+      "workingDirectory": "C:\\GitHub\\HostPanelPro.Plugins"
+    }
+  }
+}
