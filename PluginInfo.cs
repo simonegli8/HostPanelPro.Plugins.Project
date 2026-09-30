@@ -9,17 +9,20 @@ namespace HostPanelPro.Plugins
     public class PluginInfo
     {
         [JsonIgnore]
-        public string Name { get; set; }
+        public string Id { get; set; }
         [JsonIgnore]
         public string Image { get; set; }
         [JsonIgnore]
         public string ReadmeMarkdown { get; set; }
         [JsonIgnore]
-        public string ReadmeHtml => Markdig.Markdown.ToHtml(ReadmeMarkdown);
+        public string ReadmeHtml => !string.IsNullOrEmpty(ReadmeMarkdown) ? Markdig.Markdown.ToHtml(ReadmeMarkdown) : null;
         [DefaultValue(null)]
         public string Title { get; set; }
         [DefaultValue(null)]
         public string Description { get; set; }
+        [DefaultValue(null)]
+        public string Category { get; set; }
+
         [DefaultValue(null)]
         public string Tags { get; set; }
         public DateTime Published { get; set; }
