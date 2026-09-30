@@ -244,9 +244,12 @@ public class PluginManager
         var infoFiles = Directory.EnumerateFiles(Path.Combine(root, id.EncodedId, "Info"), "*.*", SearchOption.TopDirectoryOnly);
         var readmeMarkdown = infoFiles.FirstOrDefault(md => md.EndsWith(".md", StringComparison.OrdinalIgnoreCase));
         var info = JsonConvert.DeserializeObject<PluginInfo>(File.ReadAllText(infoFiles.FirstOrDefault(vs => vs.EndsWith(".json"))));
-        info.Id = id.Name;
+        info.Id = id.Id;
+        info.Name = id.Name;
         info.Image = infoFiles.FirstOrDefault(img => IsImage(img));
         info.ReadmeMarkdown = File.Exists(info.ReadmeMarkdown) ? File.ReadAllText(info.ReadmeMarkdown) : "";
+        var detailsViewActionControl = Path.Combine(root, id.Id, "Portal", "UI", "Plugins", $"{id.EncodedId}.DetailsView.ascx");
+        if (File.Exists(detailsViewActionControl)) info.DetailsViewActionsControl = detailsViewActionControl;
         info.IsInstalled = true;
         return info;
     }
@@ -696,7 +699,7 @@ public class PluginManager
                     Newest = links.Files.FirstOrDefault()?.Id.Version,
                     Image = links.Files.FirstOrDefault(img => IsImage(img.Link))?.DowloadLink,
                     ReadmeMarkdown = links.Files.FirstOrDefault(md => md.Link.EndsWith(".md", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
-                    Info = links.Files.FirstOrDefault(vs => vs.Link.EndsWith(".json", StringComparison.OrdinalIgnoreCase))?.DowloadLink
+                    Info = links.Files.FirstOrDefault(vs => vs.Link.EndsWith(".json", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
                 })
                 .Select(info => new PluginInfoResult
                 {

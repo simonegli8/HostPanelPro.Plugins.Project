@@ -11,6 +11,8 @@ namespace HostPanelPro.Plugins
         [JsonIgnore]
         public string Id { get; set; }
         [JsonIgnore]
+        public string Name { get; set; }
+        [JsonIgnore]
         public string Image { get; set; }
         [JsonIgnore]
         public string ReadmeMarkdown { get; set; }
@@ -37,5 +39,7 @@ namespace HostPanelPro.Plugins
         public string StartupAssemblies { get; set; }
         [JsonIgnore]
         public bool IsInstalled { get; set; }
+        [JsonIgnore]
+        public string DetailsViewActionsControl { get; set; }
     }
 }
