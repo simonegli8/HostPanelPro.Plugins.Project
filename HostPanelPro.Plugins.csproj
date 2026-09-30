@@ -2,8 +2,9 @@
 
     <PropertyGroup>
         <!--<TargetFramework>netstandard2.0;net10.0</TargetFramework>-->
-        <PackAsTool Condition="$(PackToTool) != 'true' Or !Exists('..\..\Publish')">false</PackAsTool>
-        <PackAsTool Condition="$(PackToTool) == 'true' Or Exists('..\..\Publish')">true</PackAsTool>
+        <IsPluginsProject Condition="Exists('..\..\Publish')">true</IsPluginsProject>
+        <PackAsTool Condition="$(PackToTool) != 'true' And $(IsPluginsProject) != 'true'">false</PackAsTool>
+        <PackAsTool Condition="$(PackToTool) == 'true' Or $(IsPluginsProject) == 'true'">true</PackAsTool>
         <TargetFrameworks Condition="$(PackAsTool) == 'true'">net10.0</TargetFrameworks>
 		<TargetFrameworks Condition="$(PackAsTool) != 'true'">netstandard2.0</TargetFrameworks>
         <LangVersion>14</LangVersion>
@@ -46,6 +47,8 @@
         <ToolCommandName>make-hpp-plugin</ToolCommandName>
         <PackageOutputPath>..\..\Lib</PackageOutputPath>
         <RestoreSources>$(RestoreSources);..\..\Lib;https://api.nuget.org/v3/index.json</RestoreSources>
+        <PackageOutputPath Condition="$(IsPluginsProject) == 'true'">..\..\Library</PackageOutputPath>
+        <RestoreSources Condition="$(IsPluginsProject) == 'true'">$(RestoreSources);..\..\Library;https://api.nuget.org/v3/index.json</RestoreSources>
         <DebugType>portable</DebugType>
 
     </PropertyGroup>
