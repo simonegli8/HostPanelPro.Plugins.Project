@@ -769,6 +769,24 @@ public class PluginManager
         await PublishAsync(zip, pluginSource, wwwRoot);
     }
 
+    public static DateTime GetNewestSourceFile(string path)
+    {
+        var dir = new DirectoryInfo(path);
+        if (dir.Exists)
+        {
+            var files = dir.EnumerateFiles("*.*", SearchOption.AllDirectories)
+                .Where(file => !file.FullName.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
+                    !file.FullName.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
+                    !file.FullName.Contains($"{Path.DirectorySeparatorChar}.vs{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
+            var newest = files
+                .Select(file => (DateTime?)file.LastWriteTimeUtc)
+                .Max()
+                ?? DateTime.UtcNow;
+            return newest;
+        }
+        return DateTime.UtcNow;
+    }
+
     public static async Task PublishAsync(string zipFile, string source = null, string wwwRoot = null)
     {
         Console.WriteLine($"Publishing {Path.GetFileName(zipFile)}");
@@ -810,7 +828,8 @@ public class PluginManager
                 JsonConvert.DeserializeObject<PluginInfo>(File.ReadAllText(infosrc)) :
                 new PluginInfo();
             plugininfo.Version = id.Version ?? new Version(1, 0, 0);
-            plugininfo.Published = DateTime.UtcNow;
+            var newestFileDate = GetNewestSourceFile(temp);
+            plugininfo.Published = newestFileDate;
             if (id.Version == null) id.Version = plugininfo.Version;
 
             var infos = files
@@ -845,7 +864,7 @@ public class PluginManager
         if (zipFile != dest) File.Move(zipFile, dest);
 
         if (archive) Directory.Delete(temp, true);
-        if (!web)
+        if (!web) // Publish index.html files
         {
             PublishDirectoryIndex(wwwRoot, "/plugins");
             foreach (var dir in Directory.EnumerateDirectories(wwwRoot, "*.*", SearchOption.AllDirectories))
