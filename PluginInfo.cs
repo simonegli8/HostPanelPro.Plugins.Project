@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 
 namespace HostPanelPro.Plugins
 {
+    [Serializable]
     public class PluginInfo
     {
         [JsonIgnore]
