@@ -684,45 +684,47 @@ public class PluginManager
 
         var getPlugins = files
             .GroupBy(link => link.Id.Name)
-            .SelectMany(plugin => plugin
-                .Select(links => new
+            .Select(plugin =>
+            {
+                var files = plugin
+                    .OrderByDescending(link => link.Id.Version ?? new Version(1, 0, 0))
+                    .ThenByDescending(link => link.Index)
+                    .ToList();
+
+                return new
                 {
                     Id = plugin.Key,
-                    Files = plugin
-                        .OrderByDescending(link => link.Id.Version ?? new Version(1, 0, 0))
-                        .ThenByDescending(link => link.Index)
-                        .ToList()
-                })
-                .Select(links => new
-                {
-                    links.Id,
-                    Newest = links.Files.FirstOrDefault()?.Id.Version,
-                    Image = links.Files.FirstOrDefault(img => IsImage(img.Link))?.DowloadLink,
-                    ReadmeMarkdown = links.Files.FirstOrDefault(md => md.Link.EndsWith(".md", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
-                    Info = links.Files.FirstOrDefault(vs => vs.Link.EndsWith(".json", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
-                })
-                .Select(info => new PluginInfoResult
-                {
-                    Id = new PluginId() { Name = info.Id, Version = info.Newest },
-                    Image = info.Image,
-                    GetReadme = GetStringAsync(info.ReadmeMarkdown),
-                    GetInfo = GetStringAsync(info.Info)
-                })
-                .Select((Func<PluginInfoResult, ValueTask<PluginInfoResult>>)(async info => new PluginInfoResult
-                {
-                    Id = info.Id,
-                    Image = info.Image,
-                    Get = await Task.WhenAll(info.GetReadme, info.GetInfo),
-                }))
-                .Select((Func<ValueTask<PluginInfoResult>, ValueTask<PluginInfo>>)(async task =>
-                {
-                    var plugin = await task;
-                    var info = plugin.Info;
-                    info.Id = plugin.Id.Id;
-                    info.Image = plugin.Image;
-                    info.ReadmeMarkdown = plugin.Readme;
-                    return info;
-                })));
+                    Files = files,
+                    Newest = files.FirstOrDefault()?.Id.Version,
+                    Image = files.FirstOrDefault(img => IsImage(img.Link))?.DowloadLink,
+                    ReadmeMarkdown = files.FirstOrDefault(md =>
+                        md.Link.EndsWith(".md", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
+                    Info = files.FirstOrDefault(vs =>
+                        vs.Link.EndsWith(".json", StringComparison.OrdinalIgnoreCase))?.DowloadLink
+                };
+            })
+            .Select(info => new PluginInfoResult
+            {
+                Id = new PluginId() { Name = info.Id, Version = info.Newest },
+                Image = info.Image,
+                GetReadme = GetStringAsync(info.ReadmeMarkdown),
+                GetInfo = GetStringAsync(info.Info)
+            })
+            .Select((Func<PluginInfoResult, ValueTask<PluginInfoResult>>)(async info => new PluginInfoResult
+            {
+                Id = info.Id,
+                Image = info.Image,
+                Get = await Task.WhenAll(info.GetReadme, info.GetInfo),
+            }))
+            .Select((Func<ValueTask<PluginInfoResult>, ValueTask<PluginInfo>>)(async task =>
+            {
+                var plugin = await task;
+                var info = plugin.Info;
+                info.Id = plugin.Id.Id;
+                info.Image = plugin.Image;
+                info.ReadmeMarkdown = plugin.Readme;
+                return info;
+            }));
 
         var plugins = getPlugins
             .Select<ValueTask<PluginInfo>, PluginInfo>(async (plugin, cancel) => await plugin);
