@@ -62,7 +62,7 @@ public struct PluginId
         var id = (PluginId)obj;
         return id.Name == Name && id.Version == Version;
     }
-    public override int GetHashCode() => Name.GetHashCode() ^ Version.GetHashCode();
+    public override int GetHashCode() => (Name?.GetHashCode() ?? 0) ^ (Version?.GetHashCode() ?? 0);
 }
 
 public class DirectoryItem
@@ -258,6 +258,8 @@ public class PluginManager
     {
         // TODO add embedded server
         var root = Server.MapPath("~/Plugins");
+        if (!Directory.Exists(root)) return Enumerable.Empty<PluginId>();
+
         return Directory.EnumerateDirectories(root, "*.*", SearchOption.TopDirectoryOnly)
             .Select(path => Path.GetFileName(path))
             .Where(id => !id.StartsWith("."))
@@ -643,21 +645,40 @@ public class PluginManager
                     img.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
                     img.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
                     img.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
-    class PluginInfoResult
+    public static async IAsyncEnumerable<PluginInfo> GetAvailablePluginsInfos()
     {
-        public PluginId Id;
-        public string[] Get;
-        public string Image;
-        public string InfoJson => Get[1];
-        public string Readme => Get[0];
-        PluginInfo info = null;
-        public PluginInfo Info => info ?? JsonConvert.DeserializeObject<PluginInfo>(InfoJson);
-        public Task<string> GetInfo;
-        public Task<string> GetReadme;
+        var installed = GetInstalledPluginIdsSet();
+
+        // Start all downloads up front, then yield them in order
+        var tasks = await GetAvailablePluginLinks()
+            .Select(plugin => GetPluginInfoAsync(plugin, installed))
+            .ToListAsync();
+
+        foreach (var task in tasks) yield return await task;
     }
 
-    public static IAsyncEnumerable<PluginInfo> GetAvailablePluginsInfos()
+    // Only downloads the info and readme files of the requested plugin
+    public static async Task<PluginInfo> GetAvailablePluginInfoAsync(string pluginId)
     {
+        var plugin = await GetAvailablePluginLinks()
+            .FirstOrDefaultAsync(p => p.Id.Id == pluginId);
+
+        return plugin != null ? await GetPluginInfoAsync(plugin, GetInstalledPluginIdsSet()) : null;
+    }
+
+    class PluginLinks
+    {
+        public PluginId Id;
+        public string Image;
+        public string ReadmeMarkdown;
+        public string Info;
+    }
+
+    // Lists the available plugins from the /plugins/.infos directory listings only, without downloading
+    // any info or readme files. Sorted by name, so the pages stay stable between requests.
+    static IAsyncEnumerable<PluginLinks> GetAvailablePluginLinks()
+    {
+        // Start every request up front
         var tasks = Feeds
             .Select(async (feed, index) => new
             {
@@ -667,7 +688,8 @@ public class PluginManager
             })
             .ToList();
 
-        var files = TaskExtensions.WhenEach(tasks)
+        // Consume them in completion order
+        return TaskExtensions.WhenEach(tasks)
             .SelectMany(async (dir, cancel) => (await dir).DirectoryItems
                 .Select(item =>
                 {
@@ -680,10 +702,9 @@ public class PluginManager
                         Link = item.FullName,
                         DowloadLink = $"{url.Scheme}://{url.Authority}{item.FullName}"
                     };
-                }));
-
-        var getPlugins = files
+                }))
             .GroupBy(link => link.Id.Name)
+            .OrderBy(plugin => plugin.Key, StringComparer.OrdinalIgnoreCase)
             .Select(plugin =>
             {
                 var files = plugin
@@ -691,54 +712,52 @@ public class PluginManager
                     .ThenByDescending(link => link.Index)
                     .ToList();
 
-                return new
+                return new PluginLinks
                 {
-                    Id = plugin.Key,
-                    Files = files,
-                    Newest = files.FirstOrDefault()?.Id.Version,
+                    Id = new PluginId() { Name = plugin.Key, Version = files.FirstOrDefault()?.Id.Version },
                     Image = files.FirstOrDefault(img => IsImage(img.Link))?.DowloadLink,
                     ReadmeMarkdown = files.FirstOrDefault(md =>
                         md.Link.EndsWith(".md", StringComparison.OrdinalIgnoreCase))?.DowloadLink,
                     Info = files.FirstOrDefault(vs =>
                         vs.Link.EndsWith(".json", StringComparison.OrdinalIgnoreCase))?.DowloadLink
                 };
-            })
-            .Select(info => new PluginInfoResult
-            {
-                Id = new PluginId() { Name = info.Id, Version = info.Newest },
-                Image = info.Image,
-                GetReadme = GetStringAsync(info.ReadmeMarkdown),
-                GetInfo = GetStringAsync(info.Info)
-            })
-            .Select((Func<PluginInfoResult, ValueTask<PluginInfoResult>>)(async info => new PluginInfoResult
-            {
-                Id = info.Id,
-                Image = info.Image,
-                Get = await Task.WhenAll(info.GetReadme, info.GetInfo),
-            }))
-            .Select((Func<ValueTask<PluginInfoResult>, ValueTask<PluginInfo>>)(async task =>
-            {
-                var plugin = await task;
-                var info = plugin.Info;
-                info.Id = plugin.Id.Id;
-                info.Image = plugin.Image;
-                info.ReadmeMarkdown = plugin.Readme;
-                return info;
-            }));
-
-        var plugins = getPlugins
-            .Select<ValueTask<PluginInfo>, PluginInfo>(async (plugin, cancel) => await plugin);
-
-#if !PackAsTool
-        //var installed = plugins.GroupJoin(GetInstalledPlugins(), plugin => plugin.Id, pluginId => pluginId, (plugin, id) => plugin);
-        //foreach (var plugin in installed) plugin.IsInstalled = true;
-#endif
-        return plugins;
+            });
     }
-    public static async Task<PluginInfo> GetAvailablePluginInfoAsync(string pluginId) =>
-        await GetAvailablePluginsInfos()
-            .Where(p => p.Id == pluginId)
-            .FirstOrDefaultAsync();
+
+    public static async Task<int> GetAvailablePluginsInfosCount() =>
+        await GetAvailablePluginLinks().CountAsync();
+
+    static HashSet<PluginId> GetInstalledPluginIdsSet() =>
+#if !PackAsTool
+        new HashSet<PluginId>(GetInstalledPlugins());
+#else
+        new HashSet<PluginId>();
+#endif
+
+    static async Task<PluginInfo> GetPluginInfoAsync(PluginLinks plugin, HashSet<PluginId> installed = null)
+    {
+        var get = await Task.WhenAll(GetStringAsync(plugin.ReadmeMarkdown), GetStringAsync(plugin.Info));
+        var info = JsonConvert.DeserializeObject<PluginInfo>(get[1]);
+        info.Id = plugin.Id.Id;
+        info.Image = plugin.Image;
+        info.ReadmeMarkdown = get[0];
+        info.IsInstalled = installed?.Contains(plugin.Id) ?? false;
+        return info;
+    }
+
+    // Only downloads the info and readme files of the plugins on the requested page. page is zero based.
+    public static async IAsyncEnumerable<PluginInfo> GetAvailablePluginsInfosPaged(int page, int count)
+    {
+        var installed = GetInstalledPluginIdsSet();
+
+        // Start all downloads of the page up front, then yield them in order
+        var tasks = GetAvailablePluginLinks()
+            .Skip(page * count)
+            .Take(count)
+            .Select(plugin => GetPluginInfoAsync(plugin, installed));
+
+        await foreach (var task in tasks) yield return await task;
+    }
 
     public static void PublishDirectoryIndex(string dir, string root)
     {
