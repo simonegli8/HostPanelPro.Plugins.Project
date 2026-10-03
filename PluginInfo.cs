@@ -23,6 +23,8 @@ namespace HostPanelPro.Plugins
         public string Title { get; set; }
         [DefaultValue(null)]
         public string Description { get; set; }
+        [JsonIgnore]
+        public string DescriptionHtml => !string.IsNullOrEmpty(Description) ? Markdig.Markdown.ToHtml(Description) : null;
         [DefaultValue(null)]
         public string Category { get; set; }
 

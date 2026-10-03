@@ -17,6 +17,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace HostPanelPro.Plugins;
 
@@ -118,6 +119,7 @@ public class PluginManager
         }
     }
     static HashSet<Type> calledInstallers = new HashSet<Type>();
+    static HashSet<Type> calledUninstallers = new HashSet<Type>();
 
     #region Plugins
     public static async Task<PluginId> FindAvailablePluginAsync(string pluginId)
@@ -220,6 +222,7 @@ public class PluginManager
     public static async Task UninstallAsync(string pluginId)
     {
         var id = new PluginId(pluginId);
+        await SetupPlugin(id.Id, true);
         using (var idlock = await Lock(id))
         {
             if (installedPlugins.Contains(id)) installedPlugins.Remove(id);
@@ -280,20 +283,33 @@ public class PluginManager
         .Select(plugin => GetInstalledPluginInfo(plugin))
         .ToList();
 
-    public static async Task SetupPlugin(string pluginId)
+    public static async Task SetupPlugin(string pluginId, bool uninstall = false)
     {
         var info = GetInstalledPluginInfo(pluginId);
         var installers = GetPluginHandlers<IPluginInstaller>(info, info.SetupAssemblies,
             type =>
             {
-                if (!calledInstallers.Contains(type))
+                if (uninstall)
                 {
-                    calledInstallers.Add(type);
-                    return true;
+                    calledInstallers.Clear();
+                    if (!calledUninstallers.Contains(type))
+                    {
+                        calledUninstallers.Add(type);
+                        return true;
+                    }
+                }
+                else
+                {
+                    calledUninstallers.Clear();
+                    if (!calledInstallers.Contains(type))
+                    {
+                        calledInstallers.Add(type);
+                        return true;
+                    }
                 }
                 return false;
             });
-        var tasks = installers.Select(installer => installer.InstallPluginAsync());
+        var tasks = installers.Select(installer => uninstall ? installer.UninstallPluginAsync() : installer.InstallPluginAsync());
         var all = Task.WhenAll(tasks);
         try
         {
@@ -326,6 +342,27 @@ public class PluginManager
             throw all.Exception;   // AggregateException with all failures
         }
     }
+    public static void StartupPlugins()
+    {
+        PluginsAssemblyLoader.Init();
+
+        var infos = GetAllInstalledPluginInfos();
+
+        var installers = infos
+            .SelectMany(info => GetPluginHandlers<IPluginStartup>(info, info.StartupAssemblies));
+        foreach (var installer in installers)
+        {
+            try
+            {
+                installer.StartPlugin();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error starting plugin {installer.GetType().FullName}: {ex}", ex);
+            }
+        }
+    }
+
 #endif
     #endregion
 
@@ -425,10 +462,10 @@ public class PluginManager
                 var availableJson = File.ReadAllText(autoInstallerAvailableConfig);
                 available = JsonConvert.DeserializeObject<List<PluginId>>(availableJson);
             }
-            var autoInstallerInstalledConfig = Path.Combine(root, AutoDir, "auto-installers.installed.config");
+            var autoInstallerInstalledConfig = Path.Combine(root, AutoDir, "auto-installers.installed.json");
             if (File.Exists(autoInstallerInstalledConfig))
             {
-                var installedJson = File.ReadAllText(autoInstallerAvailableConfig);
+                var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
                 installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
             }
         }
