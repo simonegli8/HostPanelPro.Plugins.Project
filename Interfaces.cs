@@ -14,12 +14,14 @@ public interface IAutoInstaller
 public interface IPluginInstaller
 {
     public Task InstallPluginAsync();
+    public Task UninstallPluginAsync();
+
 }
 
 public interface IPluginStartup
 {
     public Task StartPluginAsync();
-    public Task StartPlugin();
+    public void StartPlugin();
 }
 
 public abstract class AutoInstallerBase: IAutoInstaller
