@@ -868,7 +868,6 @@ public class PluginManager
             var files = Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
                 .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
                     $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
-                    $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Server{Path.DirectorySeparatorChar}AutoInstaller{Path.DirectorySeparatorChar}")}|" +
                     $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
             var zip = Path.Combine(wwwRoot, "plugins", $"{id}.7z");
             Zip.Zip7zFiles(zip, pluginSource, files);
