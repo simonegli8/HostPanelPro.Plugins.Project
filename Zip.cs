@@ -1,12 +1,4 @@
-﻿using SharpCompress;
-using SharpCompress.Archives;
-using SharpCompress.Archives.SevenZip;
-using SharpCompress.Common;
-using SharpCompress.Common.Options;
-using SharpCompress.Factories;
-using SharpCompress.Readers;
-using SharpCompress.Writers;
-using SharpCompress.Writers.SevenZip;
+﻿using LibArchive.Net;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -40,37 +32,48 @@ public class Zip
 			//Log.WriteStart("Unzipping file");
 			//Log.WriteInfo(string.Format("Unzipping file \"{0}\" to the folder \"{1}\"", zipFile, destFolder));
 
-			using (var file = stream ?? new FileStream(zipFile, System.IO.FileMode.Open, FileAccess.Read))
-			using (var zip = SevenZipArchive.OpenArchive(file))
+			using (var reader = stream != null
+				? new LibArchiveReader(stream, password: null, blockSize: 10240)
+				: new LibArchiveReader(zipFile, blockSize: 10240, password: null))
 			{
-				long zipSize = zip.TotalUncompressedSize;
+				// 7z stores all entry sizes in one header block, so a metadata-only pass (never touching
+				// Entry.Stream) is cheap; Reset() then rewinds for the real extraction pass below.
+				long zipSize = 0;
+				foreach (var entry in reader.Entries())
+				{
+					if (!entry.IsDirectory && filter(entry.Name)) zipSize += entry.LengthBytes ?? 0;
+				}
+				reader.Reset();
+
 				long unzipped = 0;
 
-				int files = 0;
-
-				var reader = zip.ExtractAllEntries();
-				while (reader.MoveToNextEntry())
+				foreach (var entry in reader.Entries())
 				{
 					cancel.ThrowIfCancellationRequested();
 
-					if (filter(reader.Entry.Key))
+					if (filter(entry.Name))
 					{
 						try
 						{
-							if (reader.Entry.IsDirectory) Directory.CreateDirectory(Path.Combine(destFolder, reader.Entry.Key.Replace('/', Path.DirectorySeparatorChar)));
-							else reader.WriteEntryToDirectory(destFolder, new ExtractionOptions(true, true));
+							var destPath = Path.Combine(destFolder, entry.Name.Replace('/', Path.DirectorySeparatorChar));
+							if (entry.IsDirectory) Directory.CreateDirectory(destPath);
+							else
+							{
+								Directory.CreateDirectory(Path.GetDirectoryName(destPath));
+								using var dest = new FileStream(destPath, System.IO.FileMode.Create, FileAccess.Write);
+								entry.Stream.CopyTo(dest);
+							}
                         }
                         catch
 						{
                             if (cancel.IsCancellationRequested) break;
-                            
+
 							throw;
 						}
 
-						files++;
-						unzipped += reader.Entry.Size;
+						unzipped += entry.LengthBytes ?? 0;
 
-						if (zipSize != 0 && reader.Entry.Size > 0)
+						if (zipSize != 0 && entry.LengthBytes > 0)
 						{
 							await (progress?.Invoke(unzipped, zipSize) ?? Task.CompletedTask);
 						}
@@ -78,8 +81,6 @@ public class Zip
                         await Task.Yield();
                     }
                 }
-
-				//Installer.Current.Files = files;
 
 				await (progress?.Invoke(zipSize, zipSize) ?? Task.CompletedTask);
 				//Log.WriteEnd("Unzipped file");
@@ -159,41 +160,33 @@ public class Zip
 		}
 	}
 
-	public static async Task Zip7zFiles(string zip, string root, params IEnumerable<string> files)
+	public static Task Zip7zFiles(string zip, string root, params IEnumerable<string> files)
 	{
         var cancel = Cancel;
 
 		Directory.CreateDirectory(Path.GetDirectoryName(zip));
 
-		using (var stream = new FileStream(zip, FileMode.Create, FileAccess.Write))
-		using (var writer = WriterFactory.OpenWriter(stream, ArchiveType.SevenZip,
-			new SevenZipWriterOptions(CompressionType.LZMA2) { CompressionLevel = 9, LeaveStreamOpen = true }))
+		if (root.Length > 0 && root[root.Length - 1] != Path.DirectorySeparatorChar) root = root + Path.DirectorySeparatorChar;
+
+		if (!files.Any()) files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
+
+		// CompressionType.None here means "don't add an outer filter" -- libarchive's own 7z writer
+		// still compresses internally (and solidly, across all entries); adding e.g. CompressionType.Lzma
+		// on top wraps the whole 7z container in a second, non-standard raw LZMA stream instead.
+		using (var writer = new LibArchiveWriter(zip, ArchiveFormat.SevenZip, CompressionType.None,
+			compressionLevel: 9, blockSize: 10240, password: null, encryption: EncryptionType.None))
 		{
-
-			var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			if (root.Length > 0 && root[root.Length - 1] != Path.DirectorySeparatorChar) root = root + Path.DirectorySeparatorChar;
-
-			if (!files.Any()) files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
-
-			var noslash = Path.DirectorySeparatorChar != '/';
-
 			foreach (var file in files)
 			{
 				cancel.ThrowIfCancellationRequested();
 
 				var entry = file;
 				if (entry.StartsWith(root)) entry = entry.Substring(root.Length);
-				/*var path = Path.GetDirectoryName(entry);
-				if (noslash) path = path.Replace(Path.DirectorySeparatorChar, '/');
-				if (path != "" && !dirs.Contains(path))
-				{
-					dirs.Add(path);
-					await writer.WriteDirectoryAsync(path);
-				}*/
-				if (noslash) entry = entry.Replace(Path.DirectorySeparatorChar, '/');
-				writer.Write(entry, file);
+				entry = entry.Replace(Path.DirectorySeparatorChar, '/');
+				writer.AddFile(file, entry);
 			}
-			await stream.FlushAsync();
 		}
+
+		return Task.CompletedTask;
     }
 }
