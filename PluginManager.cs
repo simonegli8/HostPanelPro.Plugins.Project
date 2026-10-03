@@ -954,8 +954,16 @@ public class PluginManager
 
         // Move to plugin server folder
         var dest = mapPath($"~/plugins/{id.EncodedId}.7z");
-        if (zipFile != dest) File.Move(zipFile, dest, true);
-
+        if (zipFile != dest)
+        {
+#if NETCOREAPP
+            File.Move(zipFile, dest, true);
+#else
+            if (File.Exists(dest)) File.Delete(dest);
+            File.Move(zipFile, dest);
+#endif
+        }
+        
         if (archive) Directory.Delete(temp, true);
         if (!web) // Publish index.html files
         {
