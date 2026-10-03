@@ -863,7 +863,7 @@ public class PluginManager
             .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
                 $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
         var zip = Path.Combine(wwwRoot, "plugins", $"{id}.7z");
-        await Zip.Zip7zFiles(zip, pluginSource, files);
+        Zip.Zip7zFiles(zip, pluginSource, files);
 
         await PublishAsync(zip, pluginSource, wwwRoot);
     }
@@ -907,7 +907,7 @@ public class PluginManager
 #endif
 
         // Unzip plugin
-        if (archive) await Zip.Unzip7zFile(zipFile, temp);
+        if (archive) Zip.Unzip7zFile(zipFile, temp);
 
         // Publish Infos
         var info = Path.Combine(temp, "Info");
@@ -956,7 +956,7 @@ public class PluginManager
         var destAutoInstaller = mapPath($"~/plugins/{AutoDir}/{id}.7z");
         if (Directory.Exists(autoInstaller))
         {
-            await Zip.Zip7zFiles(destAutoInstaller, autoInstaller);
+            Zip.Zip7zFiles(destAutoInstaller, autoInstaller);
         }
 
         // Move to plugin server folder

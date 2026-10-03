@@ -13,14 +13,14 @@ namespace HostPanelPro.Plugins;
 public class Zip
 {
 	public static CancellationToken Cancel => PluginManager.Cancel.Token;
-	public static async Task UnzipFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
-		Func<long, long, Task> progress = null)
+	public static void UnzipFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
+		Action<long, long> progress = null)
 	{
-		if (zipFile.EndsWith(".7z")) await Unzip7zFile(zipFile, destFolder, filter, stream, progress);
-		else await UnzipZipFile(zipFile, destFolder, filter, stream, progress);
+		if (zipFile.EndsWith(".7z")) Unzip7zFile(zipFile, destFolder, filter, stream, progress);
+		else UnzipZipFile(zipFile, destFolder, filter, stream, progress);
 	}
-	public static async Task Unzip7zFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
-		Func<long, long, Task> progress = null)
+	public static void Unzip7zFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
+		Action<long, long> progress = null)
 	{
 		try
         {
@@ -75,15 +75,12 @@ public class Zip
 
 						if (zipSize != 0 && entry.LengthBytes > 0)
 						{
-							await (progress?.Invoke(unzipped, zipSize) ?? Task.CompletedTask);
+							progress?.Invoke(unzipped, zipSize);
 						}
-
-                        await Task.Yield();
                     }
                 }
 
-				await (progress?.Invoke(zipSize, zipSize) ?? Task.CompletedTask);
-				//Log.WriteEnd("Unzipped file");
+				progress?.Invoke(zipSize, zipSize);
 			}
 		}
 		catch (Exception ex)
@@ -94,8 +91,8 @@ public class Zip
 			throw;
 		}
 	}
-	public static async Task UnzipZipFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
-		Func<long, long, Task> progress = null)
+	public static void UnzipZipFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
+		Action<long, long> progress = null)
 	{
         var cancel = Cancel;
         
@@ -116,37 +113,33 @@ public class Zip
 
 				int files = 0;
 
-				foreach (var entry in zip.Entries)
-				{
-					cancel.ThrowIfCancellationRequested();
+                foreach (var entry in zip.Entries)
+                {
+                    cancel.ThrowIfCancellationRequested();
 
-					if (filter(entry.FullName))
-					{
-						if (string.IsNullOrEmpty(entry.Name))
-						{
-							Directory.CreateDirectory(Path.Combine(destFolder, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
-						}
-						else
-						{
-							var filename = Path.Combine(destFolder, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
-							var dir = Path.GetDirectoryName(filename);
-							if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    if (filter(entry.FullName))
+                    {
+                        if (string.IsNullOrEmpty(entry.Name))
+                        {
+                            Directory.CreateDirectory(Path.Combine(destFolder, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
+                        }
+                        else
+                        {
+                            var filename = Path.Combine(destFolder, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                            var dir = Path.GetDirectoryName(filename);
+                            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                             entry.ExtractToFile(filename, true);
-							files++;
-						}
-					}
-					else if (!string.IsNullOrEmpty(entry.Name)) files++;
+                            files++;
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(entry.Name)) files++;
 
-					unzipped += entry.CompressedLength;
+                    unzipped += entry.CompressedLength;
 
-					if (zipSize != 0) await (progress?.Invoke(unzipped, zipSize) ?? Task.CompletedTask);
-				}
+                    if (zipSize != 0) progress?.Invoke(unzipped, zipSize);
+                }
 
-				//Installer.Current.Files = files;
-
-				await (progress?.Invoke(zipSize, zipSize) ?? Task.CompletedTask);
-
-				//Log.WriteEnd("Unzipped file");
+				progress?.Invoke(zipSize, zipSize);
 			}
 		}
 		catch (Exception ex)
@@ -160,33 +153,39 @@ public class Zip
 		}
 	}
 
-	public static Task Zip7zFiles(string zip, string root, params IEnumerable<string> files)
-	{
+    public static void Zip7zFiles(string zip, string root, IEnumerable<string> files  = null, Action<int, int> progress = null)
+    {
         var cancel = Cancel;
 
-		Directory.CreateDirectory(Path.GetDirectoryName(zip));
+        Directory.CreateDirectory(Path.GetDirectoryName(zip));
 
-		if (root.Length > 0 && root[root.Length - 1] != Path.DirectorySeparatorChar) root = root + Path.DirectorySeparatorChar;
+        if (root.Length > 0 && root[root.Length - 1] != Path.DirectorySeparatorChar) root = root + Path.DirectorySeparatorChar;
 
-		if (!files.Any()) files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
+        int count = 0;
+        if (!files.Any()) files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
+        else if (progress != null)
+        {
+            var list = files.ToList();
+            count = list.Count;
+            files = list;
+        }
+        // CompressionType.None here means "don't add an outer filter" -- libarchive's own 7z writer
+        // still compresses internally (and solidly, across all entries); adding e.g. CompressionType.Lzma
+        // on top wraps the whole 7z container in a second, non-standard raw LZMA stream instead.
+        using (var writer = new LibArchiveWriter(zip, ArchiveFormat.SevenZip, CompressionType.None,
+            compressionLevel: 9, blockSize: 10240, password: null, encryption: EncryptionType.None))
+        {
+            int n = 1;
+            foreach (var file in files)
+            {
+                cancel.ThrowIfCancellationRequested();
 
-		// CompressionType.None here means "don't add an outer filter" -- libarchive's own 7z writer
-		// still compresses internally (and solidly, across all entries); adding e.g. CompressionType.Lzma
-		// on top wraps the whole 7z container in a second, non-standard raw LZMA stream instead.
-		using (var writer = new LibArchiveWriter(zip, ArchiveFormat.SevenZip, CompressionType.None,
-			compressionLevel: 9, blockSize: 10240, password: null, encryption: EncryptionType.None))
-		{
-			foreach (var file in files)
-			{
-				cancel.ThrowIfCancellationRequested();
-
-				var entry = file;
-				if (entry.StartsWith(root)) entry = entry.Substring(root.Length);
-				entry = entry.Replace(Path.DirectorySeparatorChar, '/');
-				writer.AddFile(file, entry);
-			}
-		}
-
-		return Task.CompletedTask;
+                var entry = file;
+                if (entry.StartsWith(root)) entry = entry.Substring(root.Length);
+                entry = entry.Replace(Path.DirectorySeparatorChar, '/');
+                writer.AddFile(file, entry);
+                if (progress != null) progress(n++, count);
+            }
+        }
     }
 }

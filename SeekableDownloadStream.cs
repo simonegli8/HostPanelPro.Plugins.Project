@@ -30,10 +30,10 @@ public class SeekableDownloadStream : System.IO.Stream
 	TimeSpan DownloadTime = new TimeSpan(0);
 	public Task DownloadComplete;
 	public bool IsTemp;
-	public Func<long, long, Task>? Progress = null;
+	public Action<long, long>? Progress = null;
 	public string Url;
 	public SeekableDownloadStream(string url, string tmpFile, bool isTemp = true,
-		Func<long, long, Task>? progress = null)
+		Action<long, long>? progress = null)
 	{
 		Start = DateTime.Now;
 		TmpFile = tmpFile;
@@ -138,7 +138,7 @@ public class SeekableDownloadStream : System.IO.Stream
 			if (Chunks[i].Data != null) await Chunks[i].Data;
 
 			downloaded += Chunks[i].Size;
-			await (Progress?.Invoke(Math.Min(downloaded, size), size) ?? Task.CompletedTask);
+			Progress?.Invoke(Math.Min(downloaded, size), size);
 		}
 	}
 

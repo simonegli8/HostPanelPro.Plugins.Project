@@ -36,7 +36,7 @@ public class Download
     }*/
 
     public static async Task DownloadFileAndUnzipAsync(string url, string destinationFile, string destinationPath = null, Func<string, bool> filter = null,
-        Func<long, long, Task> progress = null)
+        Action<long, long> progress = null)
     {
         if (string.IsNullOrEmpty(destinationPath)) destinationPath = Path.GetDirectoryName(destinationFile);
         if (!Directory.Exists(destinationPath)) Directory.CreateDirectory(destinationPath);
@@ -48,7 +48,7 @@ public class Download
                 url.EndsWith(".dll.7z", StringComparison.OrdinalIgnoreCase);
             using (var stream = new SeekableDownloadStream(url, destinationFile + ".tmp", true, singleFile ? progress : null))
             {
-                await Zip.UnzipFile(destinationFile, destinationPath, filter, stream, singleFile ? null : progress);
+                Zip.UnzipFile(destinationFile, destinationPath, filter, stream, singleFile ? null : progress);
             }
         }
         else throw new NotSupportedException("Url must be a 7z or zip archive");
