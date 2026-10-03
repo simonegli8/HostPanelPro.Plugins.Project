@@ -27,7 +27,7 @@ public class Program
 
             await PluginManager.PublishFromSourceToStaticWebAsync(source, dest);
 
-            Console.WriteLine($"Sucessfully create plugin{(source.EndsWith("*") ? "s" : "")} into {dest}");
+            Console.WriteLine($"Sucessfully created plugin{(source.EndsWith("*") ? "s" : "")} into {dest}");
         }
     }
 
