@@ -146,6 +146,10 @@ public class PluginManager
     public static async Task<IDisposable> Lock(PluginId id) => await locks.AddOrUpdate(id, id => new AsyncMutexLock($"HostPanelPro.Plugin.{id.Id}", MutexScope.Machine), (id, ulock) => ulock).LockAsync();
 
 #if !PackAsTool
+    // Raised after InstallAsync/UninstallAsync change what's on disk under ~/Plugins, so hosts can
+    // drop anything they cached from plugin-contributed files (e.g. transformed App_Data configs).
+    public static event Action PluginsChanged;
+
     public static async Task InstallAsync(params IEnumerable<string> pluginIds)
     {
         var all = Task.WhenAll(pluginIds.Select(async pluginId =>
@@ -207,6 +211,10 @@ public class PluginManager
         {
             throw all.Exception;   // AggregateException with all failures
         }
+        finally
+        {
+            PluginsChanged?.Invoke();
+        }
     }
 
     public static async Task UninstallAsync(string pluginId)
@@ -234,6 +242,7 @@ public class PluginManager
             }
 
             PluginsAssemblyLoader.ResetPaths();
+            PluginsChanged?.Invoke();
         }
     }
 
@@ -248,8 +257,10 @@ public class PluginManager
         info.Name = id.Name;
         info.Image = infoFiles.FirstOrDefault(img => IsImage(img));
         info.ReadmeMarkdown = File.Exists(info.ReadmeMarkdown) ? File.ReadAllText(info.ReadmeMarkdown) : "";
-        var detailsViewActionControl = Path.Combine(root, id.Id, "Portal", "UI", "Plugins", $"{id.EncodedId}.DetailsView.ascx");
-        if (File.Exists(detailsViewActionControl)) info.DetailsViewActionsControl = detailsViewActionControl;
+        var detailsViewActionControlFile = $"{id.EncodedId}.DetailsView.ascx";
+        var detailsViewActionControlPath = Path.Combine(root, id.EncodedId, "UI", "Plugins", detailsViewActionControlFile);
+        if (File.Exists(detailsViewActionControlPath))
+            info.DetailsViewActionsControl = $"~/DesktopModules/HostPanelPro/Plugins/{detailsViewActionControlFile}";
         info.IsInstalled = true;
         return info;
     }
