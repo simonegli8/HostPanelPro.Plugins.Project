@@ -909,7 +909,7 @@ public class PluginManager
         {
             Directory.CreateDirectory(destInfo);
 
-            // copy new entries
+            // get version
             var files = Directory.EnumerateFiles(info, "*.*", SearchOption.TopDirectoryOnly);
             var infosrc = files.FirstOrDefault(file => file.EndsWith(".json", StringComparison.OrdinalIgnoreCase));
             var plugininfo = File.Exists(infosrc) ?
@@ -924,6 +924,7 @@ public class PluginManager
             foreach (var file in Directory.EnumerateFiles(destInfo, $"{id.EncodedId}.*", SearchOption.TopDirectoryOnly))
                 File.Delete(file);
 
+            // copy new entries
             var infos = files
                 .Select(file => new
                 {
