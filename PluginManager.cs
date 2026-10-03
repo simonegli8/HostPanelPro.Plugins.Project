@@ -834,6 +834,8 @@ public class PluginManager
     public static async Task PublishFromSourceToStaticWebAsync(string pluginSource, string wwwRoot)
     {
         pluginSource = pluginSource.TrimEnd(Path.DirectorySeparatorChar);
+        if (pluginSource == ".") pluginSource = Directory.GetCurrentDirectory();
+        if (wwwRoot == ".") wwwRoot = Directory.GetCurrentDirectory();
 
         if (pluginSource.EndsWith("*")) // Publish all subfolders on wildcard source
         {
