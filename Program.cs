@@ -23,12 +23,6 @@ public class Program
         if (source == null || dest == null || source == dest) ShowUsage();
         else
         {
-            var cwd = Environment.CurrentDirectory;
-            if (source == ".") source = cwd;
-            if (dest == ".") source = cwd;
-            if (!Path.IsPathRooted(source)) source = Path.GetFullPath(Path.Combine(cwd, source));
-            if (!Path.IsPathRooted(dest)) dest = Path.GetFullPath(Path.Combine(cwd, dest));
-
             await PluginManager.PublishFromSourceToStaticWebAsync(source, dest);
 
             Console.WriteLine($"Sucessfully created plugin{(source.EndsWith("*") ? "s" : "")} into {dest}");
