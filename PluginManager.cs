@@ -859,15 +859,21 @@ public class PluginManager
 
         // Create package 7z
         var id = Path.GetFileName(pluginSource);
-        var files = Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
-            .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
-                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
-                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Server{Path.DirectorySeparatorChar}AutoInstaller{Path.DirectorySeparatorChar}")}|" +
-                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
-        var zip = Path.Combine(wwwRoot, "plugins", $"{id}.7z");
-        Zip.Zip7zFiles(zip, pluginSource, files);
-
-        await PublishAsync(zip, pluginSource, wwwRoot);
+        if (id.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
+        {
+            await PublishAsync(pluginSource, null, wwwRoot);
+        }
+        else
+        {
+            var files = Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
+                .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
+                    $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
+                    $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Server{Path.DirectorySeparatorChar}AutoInstaller{Path.DirectorySeparatorChar}")}|" +
+                    $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
+            var zip = Path.Combine(wwwRoot, "plugins", $"{id}.7z");
+            Zip.Zip7zFiles(zip, pluginSource, files);
+            await PublishAsync(zip, pluginSource, wwwRoot);
+        }
     }
 
     public static DateTime GetNewestSourceFile(string path)
