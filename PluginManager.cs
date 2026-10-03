@@ -258,7 +258,7 @@ public class PluginManager
         info.Image = infoFiles.FirstOrDefault(img => IsImage(img));
         info.ReadmeMarkdown = File.Exists(info.ReadmeMarkdown) ? File.ReadAllText(info.ReadmeMarkdown) : "";
         var detailsViewActionControlFile = $"{id.EncodedId}.DetailsView.ascx";
-        var detailsViewActionControlPath = Path.Combine(root, id.EncodedId, "UI", "Plugins", detailsViewActionControlFile);
+        var detailsViewActionControlPath = Path.Combine(root, id.EncodedId, "Portal", "UI", "Plugins", detailsViewActionControlFile);
         if (File.Exists(detailsViewActionControlPath))
             info.DetailsViewActionsControl = $"~/DesktopModules/HostPanelPro/Plugins/{detailsViewActionControlFile}";
         info.IsInstalled = true;
