@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.IO;
+using System.Diagnostics;
 
 namespace HostPanelPro.Plugins;
 
@@ -14,6 +15,9 @@ public class Program
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         Console.WriteLine($"make-hpp-plugin v{version.ToString(3)}");
+        var debug = args.Any(a => a == "--debug");
+        if (debug) Debugger.Launch();
+        args = args.Where(a => a != "--debug").ToArray();
         var source = args.FirstOrDefault();
         var dest = args.Skip(1).FirstOrDefault();
         if (source == null || dest == null || source == dest) ShowUsage();
