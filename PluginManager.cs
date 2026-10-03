@@ -872,10 +872,6 @@ public class PluginManager
         {
             Directory.CreateDirectory(destInfo);
 
-            // delete old entries in ~/plugins/.infos
-            foreach (var file in Directory.EnumerateFiles(destInfo, $"{id.EncodedId}.*", SearchOption.TopDirectoryOnly))
-                File.Delete(file);
-
             // copy new entries
             var files = Directory.EnumerateFiles(info, "*.*", SearchOption.TopDirectoryOnly);
             var infosrc = files.FirstOrDefault(file => file.EndsWith(".json", StringComparison.OrdinalIgnoreCase));
@@ -886,6 +882,10 @@ public class PluginManager
             var newestFileDate = GetNewestSourceFile(temp);
             plugininfo.Published = newestFileDate;
             if (id.Version == null) id.Version = plugininfo.Version;
+
+            // delete old entries in ~/plugins/.infos
+            foreach (var file in Directory.EnumerateFiles(destInfo, $"{id.EncodedId}.*", SearchOption.TopDirectoryOnly))
+                File.Delete(file);
 
             var infos = files
                 .Select(file => new
@@ -916,7 +916,7 @@ public class PluginManager
 
         // Move to plugin server folder
         var dest = mapPath($"~/plugins/{id.EncodedId}.7z");
-        if (zipFile != dest) File.Move(zipFile, dest);
+        if (zipFile != dest) File.Move(zipFile, dest, true);
 
         if (archive) Directory.Delete(temp, true);
         if (!web) // Publish index.html files

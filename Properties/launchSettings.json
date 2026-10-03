@@ -2,7 +2,7 @@
   "profiles": {
     "HostPanelPro.Plugins": {
       "commandName": "Project",
-      "commandLineArgs": "Plugins\\* www",
+      "commandLineArgs": "Plugins\\TechnitiumDNS www",
       "workingDirectory": "C:\\GitHub\\HostPanelPro.Plugins"
     }
   }
