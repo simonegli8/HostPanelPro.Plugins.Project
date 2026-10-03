@@ -162,7 +162,7 @@ public class Zip
         if (root.Length > 0 && root[root.Length - 1] != Path.DirectorySeparatorChar) root = root + Path.DirectorySeparatorChar;
 
         int count = 0;
-        if (files?.Any() == true) files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
+        if (files == null) files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
         else if (progress != null)
         {
             var list = files.ToList();
