@@ -839,6 +839,8 @@ public class PluginManager
         if (wwwRoot == ".") wwwRoot = cwd;
         if (!Path.IsPathRooted(pluginSource)) pluginSource = Path.GetFullPath(Path.Combine(cwd, pluginSource));
         if (!Path.IsPathRooted(wwwRoot)) wwwRoot = Path.GetFullPath(Path.Combine(cwd, wwwRoot));
+        pluginSource = Path.GetFullPath(pluginSource);
+        wwwRoot = Path.GetFullPath(wwwRoot);
 
         if (pluginSource.EndsWith("*")) // Publish all subfolders on wildcard source
         {
