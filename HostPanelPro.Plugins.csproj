@@ -58,10 +58,11 @@
         <PackageReference Include="LibArchive.Net" Version="0.3.1" />
         <PackageReference Include="Markdig" Version="1.4.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     </ItemGroup>
 
     <ItemGroup Condition="$(TargetFramework) == 'netstandard2.0'">
-        <PackageReference Include="System.Linq.AsyncEnumerable" Version="10.0.10" />
+        <PackageReference Include="System.Linq.AsyncEnumerable" Version="10.0.13" />
     </ItemGroup>
 
     <ItemGroup Condition="$(PackAsTool) != 'true'">

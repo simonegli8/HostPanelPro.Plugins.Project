@@ -91,7 +91,28 @@ public class PluginManager
             "https://simonegli8.github.io/HostPanelPro.Plugins",
             "http://hostpanelpro.mooo.com" };
     public static CancellationTokenSource Cancel = new CancellationTokenSource();
-    public static HttpClientHandler Proxy { get; set; } = null;
+    static HttpClientHandler proxy;
+    static HttpClient client;
+    static readonly AsyncLock clientLock = new AsyncLock();
+
+    /// <summary>Optional proxy handler. Setting it rebuilds the shared <see cref="Client"/>.</summary>
+    public static HttpClientHandler Proxy
+    {
+        get => proxy;
+        set { using (var @lock = clientLock.Lock()) { proxy = value; client = null; } }
+    }
+
+    /// <summary>Shared HttpClient. Do not dispose it and do not set DefaultRequestHeaders; use per-request headers.</summary>
+    public static HttpClient Client
+    {
+        get
+        {
+            using (var @lock = clientLock.Lock())
+                return client ??= proxy != null
+                    ? new HttpClient(proxy, disposeHandler: false)
+                    : new HttpClient();
+        }
+    }
     public static AsyncLock AsyncLock = new AsyncLock();
 
     public static bool IsServer
@@ -623,10 +644,8 @@ public class PluginManager
     {
         try
         {
-            var handler = Proxy;
-            using var client = handler != null ? new HttpClient(handler) : new HttpClient();
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            using var response = await client.SendAsync(request, Cancel.Token);
+            using var response = await Client.SendAsync(request, Cancel.Token);
             if (!response.IsSuccessStatusCode) return "";
             return await response.Content.ReadAsStringAsync();
         } catch
