@@ -18,6 +18,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace HostPanelPro.Plugins;
 
@@ -448,7 +449,7 @@ public class PluginManager
             .Select(id => PluginId.ParseEncoded(id));
     }
 
-    public static async IAsyncEnumerable<PluginId> AutoInstallPluginsAsync(CancellationToken cancel = default)
+    public static async IAsyncEnumerable<PluginId> AutoInstallPluginsAsync([EnumeratorCancellation] CancellationToken cancel = default)
     {
         await EnsureAutoInstallersAsync();
         var installed = new List<PluginId>();
@@ -529,7 +530,6 @@ public class PluginManager
             .Select(async installer => await installer.Installer.IsPluginRequiredAsync() ? installer.Id : default);
 
         var tasks = new List<Task>();
-        AggregateException aex;
         await foreach (var plugin in TaskExtensions.WhenEach(pluginsToInstall)
             .Select<Task<PluginId>, PluginId>(async (plugin, cancel) => await plugin))
         {
