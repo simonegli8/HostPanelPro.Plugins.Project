@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace HostPanelPro.Plugins
 {
@@ -31,9 +32,12 @@ namespace HostPanelPro.Plugins
         [DefaultValue(null)]
         public string Tags { get; set; }
         public DateTime Published { get; set; }
+        [JsonConverter(typeof(VersionConverter))]
         public Version Version { get; set; }
+        [JsonConverter(typeof(VersionConverter))]
         [DefaultValue(null)]
         public Version MinimumHostPanelProVersion { get; set; }
+        [JsonConverter(typeof(VersionConverter))]
         [DefaultValue(null)]
         public Version MaximumHostPanelProVersion { get; set; }
         [DefaultValue(null)]

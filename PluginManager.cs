@@ -19,6 +19,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using HostPanelPro.Providers.WebAppGallery;
+using Newtonsoft.Json.Converters;
 
 namespace HostPanelPro.Plugins;
 
@@ -33,6 +35,7 @@ public struct PluginId
         get => WebUtility.UrlEncode(Name);
         set => Name = WebUtility.UrlDecode(value);
     }
+    [JsonConverter(typeof(VersionConverter))]
     public Version Version;
     [DefaultValue(null)]
     public string Feed;
@@ -147,7 +150,7 @@ public class PluginManager
     public static async Task<PluginId> FindAvailablePluginAsync(string pluginId)
     {
         var id = new PluginId(pluginId);
-        var file = $"/plugins/{id.Name}.7z";
+        var file = $"/plugins/{id.Id}.7z";
 
         var files = Feeds
             .Select(async (feed, index) => new PluginId
@@ -162,7 +165,7 @@ public class PluginManager
         return await TaskExtensions.WhenEach(files)
             .Select<Task<PluginId>, PluginId>(async (file, cancel) => await file)
             .Where(file => file.Exists)
-            .MaxByAsync(file => file.Index);
+            .MaxByAsync(file => (int?)file.Index);
     }
     static ConcurrentDictionary<PluginId, AsyncMutexLock> locks = new ConcurrentDictionary<PluginId, AsyncMutexLock>();
     static HashSet<PluginId> installedPlugins = new HashSet<PluginId>();
@@ -186,6 +189,7 @@ public class PluginManager
 
                 var file = $"/{id.EncodedId}.7z";
                 if (id.Feed == null) id = await FindAvailablePluginAsync(id.Id);
+                if (id.Name == null) throw new FileNotFoundException($"Plugin {pluginId} not found.");
                 var filepath = Server.MapPath($"~/Plugins/{id.EncodedId}" + file);
                 var pluginpath = filepath.Substring(0, filepath.Length - ".7z".Length);
                 if (Directory.Exists(pluginpath)) return;
@@ -397,16 +401,16 @@ public class PluginManager
             var available = await GetAutoInstallers().ToListAsync();
             var installed = new List<PluginId>();
             var auto = Server.MapPath($"~/Plugins/{AutoDir}");
+            var autoInstallerAvailableConfig = Path.Combine(auto, "auto-installers.available.json");
+            var autoInstallerInstalledConfig = Path.Combine(auto, "auto-installers.installed.json");
             using (var @lock = await AsyncLock.LockAsync())
             {
-                var autoInstallerConfig = Path.Combine(auto, "auto-installers.available.json");
-                if (File.Exists(autoInstallerConfig))
-                {
-                    var installedJson = File.ReadAllText(autoInstallerConfig);
+                if (File.Exists(autoInstallerInstalledConfig)) {
+                    var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
                     installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
-                }
+                } else Directory.CreateDirectory(auto);
                 var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
-                File.WriteAllText(autoInstallerConfig, JsonConvert.SerializeObject(available, settings));
+                File.WriteAllText(autoInstallerAvailableConfig, JsonConvert.SerializeObject(available, settings));
             }
             var installers = available
                 .Except(installed)
@@ -429,21 +433,59 @@ public class PluginManager
     {
         var id = await new PluginId(pluginId).NewestAsync();
 
-        // Download plugin's auto installer
-        if (id.Feed == null) id = await FindAvailablePluginAsync(id.Id);
-        if (!id.Exists) throw new FileNotFoundException($"There is no plugin {id.Id} available.");
+        // Assert auto installer is not yet installed
+        var installed = new List<PluginId>();
+        var auto = Server.MapPath($"~/Plugins/{AutoDir}");
+        var autoInstallerInstalledConfig = Path.Combine(auto, "auto-installers.installed.json");
+        using (var @lock = await AsyncLock.LockAsync())
+        {
+            if (File.Exists(autoInstallerInstalledConfig)) {
+                var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
+                installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
+            }
+            else Directory.CreateDirectory(auto);
 
-        var pluginpath = Server.MapPath($"~/Plugins/{AutoDir}/{id}/bin");
+            if (installed.Any(pid => pid.Equals(id))) return;
+            installed.Add(id);
+            var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+            File.WriteAllText(autoInstallerInstalledConfig, JsonConvert.SerializeObject(installed, settings));
+        }
 
-        // Delete previous AutoInstallers
-        var previousDirs = Directory.EnumerateDirectories(pluginpath);
-        foreach (var prevfile in previousDirs) Directory.Delete(prevfile, true);
+        try
+        {
+            // Download plugin's auto installer
+            if (id.Feed == null) id = await FindAvailablePluginAsync(id.Id);
+            if (!id.Exists) throw new FileNotFoundException($"There is no plugin {id.Id} available.");
 
-        // Download & Unzip
-        var url = id.Feed + $"/.auto-installes/{id.Id}.7z";
-        await Download.DownloadFileAndUnzipAsync(url, pluginpath, null, null, null);
+            var pluginpath = Server.MapPath($"~/Plugins/{AutoDir}/{id}/bin");
 
-        PluginsAssemblyLoader.ResetPaths();
+            // Delete previous AutoInstallers
+            var previousDirs = Directory.EnumerateDirectories(pluginpath);
+            foreach (var prevfile in previousDirs) Directory.Delete(prevfile, true);
+
+            // Download & Unzip
+            var url = id.Feed + $"/.auto-installes/{id.Id}.7z";
+            await Download.DownloadFileAndUnzipAsync(url, pluginpath, null, null, null);
+
+            PluginsAssemblyLoader.ResetPaths();
+        } catch (Exception ex)
+        {
+            // Remove from installed cache
+            using (var @lock = await AsyncLock.LockAsync())
+            {
+                if (File.Exists(autoInstallerInstalledConfig))
+                {
+                    var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
+                    installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
+                }
+                else Directory.CreateDirectory(auto);
+
+                installed.Remove(id);
+                var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+                File.WriteAllText(autoInstallerInstalledConfig, JsonConvert.SerializeObject(installed, settings));
+            }
+
+        }
     }
 
     public static async Task UninstallAutoInstallerAsync(string pluginId)
@@ -459,6 +501,25 @@ public class PluginManager
             foreach (var prevfile in previousDirs) Directory.Delete(prevfile, true);
         }
         PluginsAssemblyLoader.ResetPaths();
+
+        // Remove auto installer from installed json
+        var installed = new List<PluginId>();
+        var auto = Server.MapPath($"~/Plugins/{AutoDir}");
+        var autoInstallerInstalledConfig = Path.Combine(auto, "auto-installers.installed.json");
+        using (var @lock = await AsyncLock.LockAsync())
+        {
+            if (File.Exists(autoInstallerInstalledConfig))
+            {
+                var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
+                installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
+            }
+            else Directory.CreateDirectory(auto);
+
+            if (!installed.Remove(id)) return;
+            var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+            File.WriteAllText(autoInstallerInstalledConfig, JsonConvert.SerializeObject(installed, settings));
+        }
+
     }
     public static IEnumerable<PluginId> GetInstalledAutoInstallers()
     {
