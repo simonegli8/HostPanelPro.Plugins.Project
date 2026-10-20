@@ -2,8 +2,14 @@
   "profiles": {
     "HostPanelPro.Plugins": {
       "commandName": "Project",
-      "commandLineArgs": "Plugins\\TechnitiumDNS www",
-      "workingDirectory": "C:\\GitHub\\HostPanelPro.Plugins"
+      "commandLineArgs": "Plugins\\* www",
+      "workingDirectory": "C:\\GitHub\\WebHostingCP\\Plugins"
+    },
+    "WSL Ubuntu": {
+      "commandName": "WSL2",
+      "distributionName": "Ubuntu-26.04",
+      "commandLineArgs": "/mnt/c/GitHub/WebHostingCP/Plugins/Publish/HostPanelPro.Plugins/bin/Debug/net10.0/HostPanelPro.Plugins.dll Plugins/* www",
+      "workingDirectory": "/mnt/c/GitHub/WebHostingCP/Plugins"
     }
   }
 }

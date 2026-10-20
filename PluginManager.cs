@@ -969,7 +969,8 @@ public class PluginManager
                 CallDotnetBuild(pluginSource, id);
                 files = GetPluginSourceFiles(pluginSource);
             }
-            Zip.Zip7zFiles(zip, pluginSource, files);
+            Zip.Zip7zFiles(zip, pluginSource, files, (n, total) => Console.Write("."));
+            Console.WriteLine();
             await PublishAsync(zip, pluginSource, wwwRoot);
         }
     }
