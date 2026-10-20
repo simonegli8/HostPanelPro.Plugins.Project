@@ -973,6 +973,7 @@ public class PluginManager
                 files = GetPluginSourceFiles(pluginSource);
             }
             int noffiles = 0;
+            Console.Write($"Packing {id}.7z ");
             Zip.Zip7zFiles(zip, pluginSource, files, (n, total) =>
             {
                 Console.Write(".");
@@ -992,7 +993,7 @@ public class PluginManager
     private static void CallDotnetBuild(string pluginSource, string id)
     {
         // call dotnet build
-        Console.WriteLine($"Building {id}...");
+        Console.WriteLine($"Building {id} ...");
         var p = new Process();
         p.StartInfo = new ProcessStartInfo("dotnet", "build")
         {
@@ -1043,7 +1044,7 @@ public class PluginManager
 
     public static async Task PublishAsync(string zipFile, string source = null, string wwwRoot = null)
     {
-        Console.WriteLine($"Publishing {Path.GetFileName(zipFile)}");
+        Console.Write($"Publishing {Path.GetFileName(zipFile)}");
         var id = PluginId.ParseEncoded(Path.GetFileNameWithoutExtension(zipFile));
 
         var web = wwwRoot == null;
@@ -1133,6 +1134,8 @@ public class PluginManager
             foreach (var dir in Directory.EnumerateDirectories(wwwRoot, "*.*", SearchOption.AllDirectories))
                 PublishDirectoryIndex(dir, dir.Replace(wwwRoot, $"/{PluginsDir}").Replace(Path.DirectorySeparatorChar, '/'));
         }
+
+        Console.WriteLine(" done.");
     }
 
     static IEnumerable<T> GetPluginHandlers<T>(PluginInfo plugin, string assemblies,
