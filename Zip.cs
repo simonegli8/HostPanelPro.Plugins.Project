@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using HostPanelPro.Providers.OS;
 
 namespace HostPanelPro.Plugins;
 
@@ -22,16 +23,21 @@ public class Zip
 
 	[System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
 	static extern IntPtr LoadLibrary(string fileName);
+    private static bool IsCore => !(IsNetFX || IsNetNative);
+    [SupportedOSPlatformGuard("windows")]
+    private static bool IsNetFX => RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.OrdinalIgnoreCase);
+    [SupportedOSPlatformGuard("windows")]
+    private static bool IsNetNative => RuntimeInformation.FrameworkDescription.StartsWith(".NET Native", StringComparison.OrdinalIgnoreCase);
 
-	/// <summary>
-	/// .NET Framework does not probe runtimes/{rid}/native, so load archive.dll by full path;
-	/// a module loaded this way satisfies the later DllImport("archive") of LibArchive.Net.
-	/// </summary>
-	static void PreloadNativeLibrary()
+    /// <summary>
+    /// .NET Framework does not probe runtimes/{rid}/native, so load archive.dll by full path;
+    /// a module loaded this way satisfies the later DllImport("archive") of LibArchive.Net.
+    /// </summary>
+    static void PreloadNativeLibrary()
 	{
 		try
 		{
-			if (OSInfo.IsCore || Path.DirectorySeparatorChar != '\\') return;
+			if (IsCore || Path.DirectorySeparatorChar != '\\') return;
 
 			var rid = "win-" + System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
 			var dirs = new List<string>();

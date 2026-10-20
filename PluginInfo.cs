@@ -32,12 +32,12 @@ namespace HostPanelPro.Plugins
         [DefaultValue(null)]
         public string Tags { get; set; }
         public DateTime Published { get; set; }
-        [JsonConverter(typeof(VersionConverter))]
+        [JsonConverter(typeof(Newtonsoft.Json.Converters.VersionConverter))]
         public Version Version { get; set; }
-        [JsonConverter(typeof(VersionConverter))]
+        [JsonConverter(typeof(Newtonsoft.Json.Converters.VersionConverter))]
         [DefaultValue(null)]
         public Version MinimumHostPanelProVersion { get; set; }
-        [JsonConverter(typeof(VersionConverter))]
+        [JsonConverter(typeof(Newtonsoft.Json.Converters.VersionConverter))]
         [DefaultValue(null)]
         public Version MaximumHostPanelProVersion { get; set; }
         [DefaultValue(null)]

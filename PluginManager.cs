@@ -17,10 +17,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using HostPanelPro.Providers.WebAppGallery;
-using Newtonsoft.Json.Converters;
 
 namespace HostPanelPro.Plugins;
 
@@ -35,7 +31,7 @@ public struct PluginId
         get => WebUtility.UrlEncode(Name);
         set => Name = WebUtility.UrlDecode(value);
     }
-    [JsonConverter(typeof(VersionConverter))]
+    [JsonConverter(typeof(Newtonsoft.Json.Converters.VersionConverter))]
     public Version Version;
     [DefaultValue(null)]
     public string Feed;
