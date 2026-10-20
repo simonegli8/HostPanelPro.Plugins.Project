@@ -1008,6 +1008,11 @@ public class PluginManager
         p.BeginErrorReadLine();
         p.BeginOutputReadLine();
         if (!p.WaitForExit(5 * 60 * 1000)) throw new TimeoutException($"dotnet build for {id} took longer than 5 minutes"); // wait at most 5 minutes
+        if (p.ExitCode != 0)
+        {
+            Environment.ExitCode = p.ExitCode;
+            throw new Exception($"dotnet build returned error code: {p.ExitCode}");
+        }
     }
 
     public static DateTime GetNewestSourceFile(string path)

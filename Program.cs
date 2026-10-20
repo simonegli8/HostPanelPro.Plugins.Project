@@ -23,8 +23,14 @@ public class Program
         if (source == null || dest == null || source == dest) ShowUsage();
         else
         {
-            await PluginManager.PublishFromSourceToStaticWebAsync(source, dest);
-
+            try
+            {
+                await PluginManager.PublishFromSourceToStaticWebAsync(source, dest);
+            } catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return;
+            }
             Console.WriteLine($"Sucessfully created plugin{(source.EndsWith("*") ? "s" : "")} into {dest}");
         }
     }
