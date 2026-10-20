@@ -901,9 +901,11 @@ public class PluginManager
 
     public static void PublishDirectoryIndex(string dir, string root)
     {
-        var dirs = new DirectoryInfo(dir).EnumerateDirectories();
+        var dirs = new DirectoryInfo(dir).EnumerateDirectories()
+            .OrderBy(dir => dir.Name, StringComparer.OrdinalIgnoreCase);
         var files = new DirectoryInfo(dir).EnumerateFiles()
-            .Where(file => file.Name != "index.html");
+            .Where(file => file.Name != "index.html")
+            .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase);
         var sb = new StringBuilder(@"<html>
   <head></head>
   <body>
