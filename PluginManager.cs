@@ -960,7 +960,11 @@ public class PluginManager
             var zip = Path.Combine(wwwRoot, PluginsDir, $"{id}.7z");
             var files = GetPluginSourceFiles(pluginSource);
             var hasBinFiles = files.Any(file => file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
-            if (!hasBinFiles)
+            if (!hasBinFiles &&
+                (Directory.EnumerateFiles(pluginSource, "*.slnx", SearchOption.TopDirectoryOnly).Any() ||
+                Directory.EnumerateFiles(pluginSource, "*.sln", SearchOption.TopDirectoryOnly).Any() ||
+                Directory.EnumerateFiles(pluginSource, "*.csproj", SearchOption.TopDirectoryOnly).Any() ||
+                Directory.EnumerateFiles(pluginSource, "*.vbproj", SearchOption.TopDirectoryOnly).Any()))
             {
                 CallDotnetBuild(pluginSource, id);
                 files = GetPluginSourceFiles(pluginSource);
@@ -974,7 +978,7 @@ public class PluginManager
         Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
             .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
                 $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
-                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
+                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.vbproj$|\.cs$"));
 
     private static void CallDotnetBuild(string pluginSource, string id)
     {
