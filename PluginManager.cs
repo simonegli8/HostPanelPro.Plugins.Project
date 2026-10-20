@@ -18,6 +18,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace HostPanelPro.Plugins;
 
@@ -961,10 +962,7 @@ public class PluginManager
             var hasBinFiles = files.Any(file => file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
             if (!hasBinFiles)
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("dotnet", "build")
-                {
-                    WorkingDirectory = pluginSource
-                });
+                CallDotnetBuild(pluginSource, id);
                 files = GetPluginSourceFiles(pluginSource);
             }
             Zip.Zip7zFiles(zip, pluginSource, files);
@@ -977,6 +975,35 @@ public class PluginManager
             .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
                 $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
                 $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
+
+    private static void CallDotnetBuild(string pluginSource, string id)
+    {
+        // call dotnet build
+        Console.WriteLine($"Building {id}...");
+        var p = new Process();
+        p.StartInfo = new ProcessStartInfo("dotnet", "build")
+        {
+            WorkingDirectory = pluginSource,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            StandardErrorEncoding = Encoding.UTF8,
+            StandardOutputEncoding = Encoding.UTF8,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        p.ErrorDataReceived += (sender, arg) => {
+            if (arg.Data != null) Console.Error.WriteLine(arg.Data);
+        };
+        p.OutputDataReceived += (sender, arg) =>
+        {
+            if (arg.Data != null) Console.WriteLine(arg.Data);
+        };
+        p.EnableRaisingEvents = true;
+        p.Start();
+        p.BeginErrorReadLine();
+        p.BeginOutputReadLine();
+        if (!p.WaitForExit(5 * 60 * 1000)) throw new TimeoutException($"dotnet build for {id} took longer than 5 minutes"); // wait at most 5 minutes
+    }
 
     public static DateTime GetNewestSourceFile(string path)
     {
