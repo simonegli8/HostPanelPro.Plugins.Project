@@ -956,15 +956,27 @@ public class PluginManager
         }
         else
         {
-            var files = Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
-                .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
-                    $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
-                    $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
             var zip = Path.Combine(wwwRoot, PluginsDir, $"{id}.7z");
+            var files = GetPluginSourceFiles(pluginSource);
+            var hasBinFiles = files.Any(file => file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
+            if (!hasBinFiles)
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("dotnet", "build")
+                {
+                    WorkingDirectory = pluginSource
+                });
+                files = GetPluginSourceFiles(pluginSource);
+            }
             Zip.Zip7zFiles(zip, pluginSource, files);
             await PublishAsync(zip, pluginSource, wwwRoot);
         }
     }
+
+    private static IEnumerable<string> GetPluginSourceFiles(string pluginSource) =>
+        Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
+            .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
+                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
+                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
 
     public static DateTime GetNewestSourceFile(string path)
     {
