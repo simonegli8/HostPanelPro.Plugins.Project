@@ -985,7 +985,7 @@ public class PluginManager
         Directory.EnumerateFiles(pluginSource, "*.*", SearchOption.AllDirectories)
             .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
                 $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
-                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.vbproj$|\.cs$"));
+                $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.vbproj$|\.cs$|\.vb$"));
 
     private static void CallDotnetBuild(string pluginSource, string id)
     {
