@@ -1042,9 +1042,9 @@ public class PluginManager
 #if !PackAsTool
         var mapPath = web ?
             (Func<string, string>)Server.MapPath :
-            (path => path.Replace('/', Path.DirectorySeparatorChar).Replace($"~\\{PluginsDir}", wwwRoot));
+            (path => path.Replace($"~/{PluginsDir}", wwwRoot).Replace('/', Path.DirectorySeparatorChar));
 #else
-        Func<string, string> mapPath = path => path.Replace('/', Path.DirectorySeparatorChar).Replace($"~\\{PluginsDir}", wwwRoot);
+        Func<string, string> mapPath = path => path.Replace($"~/{PluginsDir}", wwwRoot).Replace('/', Path.DirectorySeparatorChar);
 #endif
 
         // Unzip plugin
