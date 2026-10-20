@@ -941,8 +941,9 @@ public class PluginManager
             var pluginRoot = Path.GetDirectoryName(pluginSource);
             var pluginsDir = Path.Combine(wwwRoot, PluginsDir);
             if (Directory.Exists(pluginsDir)) Directory.Delete(pluginsDir, true);
-            foreach (var plugin in Directory.EnumerateDirectories(pluginRoot, pattern)
-                .Where(p => !Path.GetFileName(p).StartsWith(".")))
+            var plugins = Directory.EnumerateDirectories(pluginRoot, pattern)
+                .Where(p => !Path.GetFileName(p).StartsWith("."));
+            foreach (var plugin in plugins)
             {
                 await PublishFromSourceToStaticWebAsync(plugin, wwwRoot);
             }

@@ -8,8 +8,8 @@
     "WSL Ubuntu": {
       "commandName": "WSL2",
       "distributionName": "Ubuntu-26.04",
-      "commandLineArgs": "/mnt/c/GitHub/WebHostingCP/Plugins/Publish/HostPanelPro.Plugins/bin/Debug/net10.0/HostPanelPro.Plugins.dll Plugins/* www",
-      "workingDirectory": "/mnt/c/GitHub/WebHostingCP/Plugins"
+      "commandLineArgs": "/mnt/c/GitHub/WebHostingCP/Plugins/Publish/HostPanelPro.Plugins/bin/Debug/net10.0/HostPanelPro.Plugins.dll /root/plugintest/Plugins/* /root/plugintest/www",
+      "workingDirectory": "/root/plugintest/Plugins"
     }
   }
 }
