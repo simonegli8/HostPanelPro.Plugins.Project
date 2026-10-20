@@ -14,7 +14,7 @@ public interface IAutoInstaller
 public interface IPluginInstaller
 {
     public Task InstallPluginAsync();
-    public Task UninstallPluginAsync();
+    public Task<bool> UninstallPluginAsync();
 
 }
 

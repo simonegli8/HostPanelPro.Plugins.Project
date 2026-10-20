@@ -7,12 +7,46 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using HostPanelPro.Providers.OS;
 
 namespace HostPanelPro.Plugins;
 
 public class Zip
 {
 	public static CancellationToken Cancel => PluginManager.Cancel.Token;
+
+	static Zip()
+	{
+		PreloadNativeLibrary();
+	}
+
+	[System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+	static extern IntPtr LoadLibrary(string fileName);
+
+	/// <summary>
+	/// .NET Framework does not probe runtimes/{rid}/native, so load archive.dll by full path;
+	/// a module loaded this way satisfies the later DllImport("archive") of LibArchive.Net.
+	/// </summary>
+	static void PreloadNativeLibrary()
+	{
+		try
+		{
+			if (OSInfo.IsCore || Path.DirectorySeparatorChar != '\\') return;
+
+			var rid = "win-" + System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+			var dirs = new List<string>();
+			try { dirs.Add(Path.GetDirectoryName(new Uri(typeof(Zip).Assembly.CodeBase).LocalPath)); } catch { }
+			dirs.Add(AppDomain.CurrentDomain.BaseDirectory);
+			dirs.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bin"));
+
+			foreach (var dir in dirs.Where(d => !string.IsNullOrEmpty(d)).Distinct(StringComparer.OrdinalIgnoreCase))
+			{
+				var path = Path.Combine(dir, "runtimes", rid, "native", "archive.dll");
+				if (File.Exists(path) && LoadLibrary(path) != IntPtr.Zero) return;
+			}
+		}
+		catch { }
+	}
 	public static void UnzipFile(string zipFile, string destFolder, Func<string, bool> filter = null, Stream stream = null,
 		Action<long, long> progress = null)
 	{

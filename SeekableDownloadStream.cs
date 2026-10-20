@@ -55,15 +55,22 @@ public class SeekableDownloadStream : System.IO.Stream
 		DownloadTime += DateTime.Now - start;
 		return size;
 	}
+	// Chunks must exist before the first Read: DownloadSequential allocates them only after its
+	// continuation runs, which a reader blocked on Size.Result can overtake.
+	void EnsureChunks(long size)
+	{
+		if (Chunks.Length == 0 && size > 0)
+			Chunks = new (long Position, int Size, Task<Task> Data)[(int)(size / ChunkSize) + (size % ChunkSize == 0 ? 0 : 1)];
+	}
 	bool GetChunk(long size, int i)
 	{
-		while (Chunks == null) Thread.Sleep(0);
-
-		// safety: ensure i is in bounds
-		if (i < 0 || i >= Chunks.Length) return false;
-
 		using (var alock = ChunkLock.Lock())
 		{
+			EnsureChunks(size);
+
+			// safety: ensure i is in bounds
+			if (i < 0 || i >= Chunks.Length) return false;
+
 			var chunk = Chunks[i];
 			if (Buffer != null && chunk.Data == null)
 			{
@@ -128,7 +135,7 @@ public class SeekableDownloadStream : System.IO.Stream
 	public async Task DownloadSequential()
 	{
 		var size = await Size!;
-		Chunks = new (long Position, int Size, Task<Task> Data)[(int)(size / ChunkSize) + (size % ChunkSize == 0 ? 0 : 1)];
+		using (ChunkLock.Lock()) EnsureChunks(size);
 		long downloaded = 0;
 		for (int i = 0; i < Chunks.Length; i++)
 		{
@@ -329,6 +336,7 @@ public class SeekableDownloadStream : System.IO.Stream
 				var totalTime = (DateTime.Now - Start).TotalSeconds;
 				var download = DownloadTime.TotalSeconds;
 				//Log.WriteLine($"Downloaded {size:F1} MB at {((double)size) / download:F1} MB/s, unpack speed {(double)size / totalTime:F1} MB/s");
+				//Buffer.Close();
 				Buffer.Dispose();
 				try
 				{

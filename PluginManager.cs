@@ -85,6 +85,8 @@ public class DirectoryItem
 public class PluginManager
 {
     public const string AutoDir = ".auto-installers";
+    public const string PluginsDir = "plugins";
+
     const bool DebuggingFeeds = true;
     public static List<string> Feeds = DebuggingFeeds ?
         new List<string>() {
@@ -150,7 +152,7 @@ public class PluginManager
     public static async Task<PluginId> FindAvailablePluginAsync(string pluginId)
     {
         var id = new PluginId(pluginId);
-        var file = $"/plugins/{id.Id}.7z";
+        var file = $"/{PluginsDir}/{id.Id}.7z";
 
         var files = Feeds
             .Select(async (feed, index) => new PluginId
@@ -245,17 +247,20 @@ public class PluginManager
         }
     }
 
-    public static async Task UninstallAsync(string pluginId)
+    public static async Task<bool> UninstallAsync(string pluginId)
     {
         var id = new PluginId(pluginId);
-        await SetupPlugin(id.Id, true);
+        if (!await SetupPlugin(id.Id, true)) return false;
         using (var idlock = await Lock(id))
         {
             if (installedPlugins.Contains(id)) installedPlugins.Remove(id);
 
             if (id.Version == null)
             {
-                foreach (var plugin in GetInstalledPlugins()) await UninstallAsync(plugin.Id);
+                foreach (var plugin in GetInstalledPlugins())
+                {
+                    if (plugin.Name == id.Name && !await UninstallAsync(plugin.Id)) return false;
+                }
             }
             else
             {
@@ -272,6 +277,8 @@ public class PluginManager
 
             PluginsAssemblyLoader.ResetPaths();
             PluginsChanged?.Invoke();
+
+            return true;
         }
     }
 
@@ -309,7 +316,7 @@ public class PluginManager
         .Select(plugin => GetInstalledPluginInfo(plugin))
         .ToList();
 
-    public static async Task SetupPlugin(string pluginId, bool uninstall = false)
+    public static async Task<bool> SetupPlugin(string pluginId, bool uninstall = false)
     {
         var info = GetInstalledPluginInfo(pluginId);
         var installers = GetPluginHandlers<IPluginInstaller>(info, info.SetupAssemblies,
@@ -335,16 +342,23 @@ public class PluginManager
                 }
                 return false;
             });
-        var tasks = installers.Select(installer => uninstall ? installer.UninstallPluginAsync() : installer.InstallPluginAsync());
+        var tasks = installers
+            .Select<IPluginInstaller, Func<Task<bool>>>(installer => uninstall ?
+                async () => await installer.UninstallPluginAsync() :
+                (async () => { await installer.InstallPluginAsync(); return true; }))
+            .Select(func => func());
         var all = Task.WhenAll(tasks);
         try
         {
             await all;
+
         }
         catch when (all.Exception is not null)
         {
             throw all.Exception;   // AggregateException with all failures
         }
+
+        return tasks.All(t => t.Result);
     }
 
     public static async Task StartupPluginsAsync()
@@ -458,14 +472,14 @@ public class PluginManager
             if (!id.Exists) throw new FileNotFoundException($"There is no plugin {id.Id} available.");
 
             var pluginpath = Server.MapPath($"~/Plugins/{AutoDir}/{id}/bin");
-
             // Delete previous AutoInstallers
-            var previousDirs = Directory.EnumerateDirectories(pluginpath);
-            foreach (var prevfile in previousDirs) Directory.Delete(prevfile, true);
+            if (Directory.Exists(pluginpath)) Directory.Delete(pluginpath, true);
+            Directory.CreateDirectory(pluginpath);
 
             // Download & Unzip
-            var url = id.Feed + $"/.auto-installes/{id.Id}.7z";
-            await Download.DownloadFileAndUnzipAsync(url, pluginpath, null, null, null);
+            var url = id.Feed + $"/{PluginsDir}/{AutoDir}/{id.Id}.7z";
+            var tempFile = Path.GetTempFileName() + ".7z";
+            await Download.DownloadFileAndUnzipAsync(url, tempFile, pluginpath);
 
             PluginsAssemblyLoader.ResetPaths();
         } catch (Exception ex)
@@ -717,7 +731,7 @@ public class PluginManager
     public static IAsyncEnumerable<PluginId> GetAvailablePlugins()
     {
         // Start every request up front
-        var tasks = Feeds.Select(async (feed, index) => (Feed: feed, Index: index, Files: await GetDirectoryAsync(feed, "/plugins"))).ToList();
+        var tasks = Feeds.Select(async (feed, index) => (Feed: feed, Index: index, Files: await GetDirectoryAsync(feed, $"/{PluginsDir}"))).ToList();
 
         // Consume them in completion order
         return TaskExtensions.WhenEach(tasks)
@@ -751,7 +765,7 @@ public class PluginManager
     public static IAsyncEnumerable<PluginId> GetAutoInstallers()
     {
         // Start every request up front
-        var tasks = Feeds.Select(async (feed, index) => (Feed: feed, Index: index, Files: await GetDirectoryAsync(feed, $"/plugins/{AutoDir}"))).ToList();
+        var tasks = Feeds.Select(async (feed, index) => (Feed: feed, Index: index, Files: await GetDirectoryAsync(feed, $"/{PluginsDir}/{AutoDir}"))).ToList();
 
         // Consume them in completion order
         return TaskExtensions.WhenEach(tasks)
@@ -812,7 +826,7 @@ public class PluginManager
             {
                 Feed = feed,
                 Index = index,
-                DirectoryItems = await GetDirectoryAsync(feed, "/plugins/.infos")
+                DirectoryItems = await GetDirectoryAsync(feed, $"/{PluginsDir}/.infos")
             })
             .ToList();
 
@@ -927,7 +941,7 @@ public class PluginManager
             var pattern = Path.GetFileName(pluginSource);
             if (pattern == "*") pattern = "*.*";
             var pluginRoot = Path.GetDirectoryName(pluginSource);
-            var pluginsDir = Path.Combine(wwwRoot, "plugins");
+            var pluginsDir = Path.Combine(wwwRoot, PluginsDir);
             if (Directory.Exists(pluginsDir)) Directory.Delete(pluginsDir, true);
             foreach (var plugin in Directory.EnumerateDirectories(pluginRoot, pattern)
                 .Where(p => !Path.GetFileName(p).StartsWith(".")))
@@ -949,7 +963,7 @@ public class PluginManager
                 .Where(file => !Regex.IsMatch(file.Substring(pluginSource.Length),
                     $@"{Regex.Escape($"{Path.DirectorySeparatorChar}Source{Path.DirectorySeparatorChar}")}|" +
                     $@"{Regex.Escape($"{Path.DirectorySeparatorChar}")}\.|\.slnx$|\.csproj$|\.cs$"));
-            var zip = Path.Combine(wwwRoot, "plugins", $"{id}.7z");
+            var zip = Path.Combine(wwwRoot, PluginsDir, $"{id}.7z");
             Zip.Zip7zFiles(zip, pluginSource, files);
             await PublishAsync(zip, pluginSource, wwwRoot);
         }
@@ -980,7 +994,7 @@ public class PluginManager
 
         var web = wwwRoot == null;
         var archive = web || source.EndsWith(".7z", StringComparison.OrdinalIgnoreCase);
-        if (wwwRoot != null) wwwRoot = Path.Combine(wwwRoot, "plugins");
+        if (wwwRoot != null) wwwRoot = Path.Combine(wwwRoot, PluginsDir);
         if (wwwRoot.EndsWith(Path.DirectorySeparatorChar.ToString())) wwwRoot = wwwRoot.Substring(0, wwwRoot.Length - 1);
         Directory.CreateDirectory(wwwRoot);
         var temp = (archive || source == null) ? Path.Combine(Path.GetTempPath(), "HostPanelPro.Plugins", id.Id) : source;
@@ -988,9 +1002,9 @@ public class PluginManager
 #if !PackAsTool
         var mapPath = web ?
             (Func<string, string>)Server.MapPath :
-            (path => path.Replace('/', Path.DirectorySeparatorChar).Replace("~\\plugins", wwwRoot));
+            (path => path.Replace('/', Path.DirectorySeparatorChar).Replace($"~\\{PluginsDir}", wwwRoot));
 #else
-        Func<string, string> mapPath = path => path.Replace('/', Path.DirectorySeparatorChar).Replace("~\\plugins", wwwRoot);
+        Func<string, string> mapPath = path => path.Replace('/', Path.DirectorySeparatorChar).Replace($"~\\{PluginsDir}", wwwRoot);
 #endif
 
         // Unzip plugin
@@ -998,7 +1012,7 @@ public class PluginManager
 
         // Publish Infos
         var info = Path.Combine(temp, "Info");
-        var destInfo = mapPath($"~/plugins/.infos");
+        var destInfo = mapPath($"~/{PluginsDir}/.infos");
         if (Directory.Exists(info))
         {
             Directory.CreateDirectory(destInfo);
@@ -1040,14 +1054,14 @@ public class PluginManager
 
         // Publish auto installer
         var autoInstaller = Path.Combine(temp, "Server", "AutoInstaller", "bin");
-        var destAutoInstaller = mapPath($"~/plugins/{AutoDir}/{id}.7z");
+        var destAutoInstaller = mapPath($"~/{PluginsDir}/{AutoDir}/{id}.7z");
         if (Directory.Exists(autoInstaller))
         {
             Zip.Zip7zFiles(destAutoInstaller, autoInstaller);
         }
 
         // Move to plugin server folder
-        var dest = mapPath($"~/plugins/{id.EncodedId}.7z");
+        var dest = mapPath($"~/{PluginsDir}/{id.EncodedId}.7z");
         if (zipFile != dest)
         {
 #if NETCOREAPP
@@ -1061,9 +1075,9 @@ public class PluginManager
         if (archive) Directory.Delete(temp, true);
         if (!web) // Publish index.html files
         {
-            PublishDirectoryIndex(wwwRoot, "/plugins");
+            PublishDirectoryIndex(wwwRoot, $"/{PluginsDir}");
             foreach (var dir in Directory.EnumerateDirectories(wwwRoot, "*.*", SearchOption.AllDirectories))
-                PublishDirectoryIndex(dir, dir.Replace(wwwRoot, "/plugins").Replace(Path.DirectorySeparatorChar, '/'));
+                PublishDirectoryIndex(dir, dir.Replace(wwwRoot, $"/{PluginsDir}").Replace(Path.DirectorySeparatorChar, '/'));
         }
     }
 
