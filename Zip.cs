@@ -190,6 +190,7 @@ public class Zip
 		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern int archive_read_support_format_all(IntPtr a);
 		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern int archive_read_set_read_callback(IntPtr a, ReadCallback cb);
 		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern int archive_read_set_seek_callback(IntPtr a, SeekCallback cb);
+		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern int archive_read_set_callback_data(IntPtr a, IntPtr data);
 		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern int archive_read_open1(IntPtr a);
 		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern int archive_read_next_header(IntPtr a, out IntPtr entry);
 		[DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] static extern IntPtr archive_read_data(IntPtr a, byte[] buffer, IntPtr size);
@@ -221,6 +222,7 @@ public class Zip
 				archive_read_support_format_all(archive);
 				Check(archive_read_set_read_callback(archive, readCallback));
 				Check(archive_read_set_seek_callback(archive, seekCallback));
+				Check(archive_read_set_callback_data(archive, IntPtr.Zero)); // allocates the client dataset open1 relies on
 				Check(archive_read_open1(archive));
 			}
 			catch
