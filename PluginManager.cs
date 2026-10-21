@@ -557,12 +557,7 @@ public class PluginManager
                 var availableJson = File.ReadAllText(autoInstallerAvailableConfig);
                 available = JsonConvert.DeserializeObject<List<PluginId>>(availableJson);
             }
-            var autoInstallerInstalledConfig = Path.Combine(root, AutoDir, "auto-installers.installed.json");
-            if (File.Exists(autoInstallerInstalledConfig))
-            {
-                var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
-                installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
-            }
+            installed = GetInstalledPlugins().ToList();
         }
 
         var autoInstallers = available
@@ -577,17 +572,24 @@ public class PluginManager
             })
             .ToList();
         var pluginsToInstall = autoInstallers
-            .SelectMany(id => Directory.EnumerateDirectories(Path.Combine(root, AutoDir, id.EncodedName, "bin"))
-                .Select(dir => (Id: id, Directory: dir)))
-            .Reverse()
-            .Where(path =>
-            {
-                var dir = Path.GetFileName(path.Directory);
-                return OSInfo.IsNetFX && dir.StartsWith("net48") ||
-                    OSInfo.IsCore &&
-                    (dir == "net10.0" || dir == "net11" || dir == "net12" || dir == "net13" || dir == "netstandard2.1") ||
-                    dir == "netstandard2.0";
-            })
+            .Select(id => Directory.EnumerateDirectories(Path.Combine(root, AutoDir, id.EncodedId, "bin"))
+                .Select(dir => (Id: id, Directory: dir, Name: Path.GetFileName(dir)))
+                .OrderByDescending(dir => {
+                    // Sort net version directories in correct order, so newer versions come first
+                    var m = Regex.Match(dir.Name, @"[0-9]+(?:\.[0-9]+)?");
+                    if (m.Success) return double.Parse(m.Value);
+                    return 0;
+                })
+                .Where(dir =>
+                {
+                    var name = dir.Name;
+                    return OSInfo.IsNetFX && name.StartsWith("net48") ||
+                        OSInfo.IsCore &&
+                        (name == "net10.0" || name == "net11" || name == "net12" || name == "net13" || name == "netstandard2.1") ||
+                        name == "netstandard2.0";
+                })
+                .FirstOrDefault())
+            .Where(dir => dir.Directory != null)
             .SelectMany(dir => Directory.EnumerateFiles(dir.Directory)
                 .Select(file => (Id: dir.Id, File: file)))
             .Where(file => file.File.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
@@ -770,9 +772,8 @@ public class PluginManager
             .SelectMany(async (task, cancel) =>
                 (await task).Files
                    .Where(file => !file.IsDirectory && !file.Name.StartsWith(".") && file.Name.EndsWith(".7z"))
-                   .Select(entry => new PluginId
+                   .Select(entry => new PluginId(WebUtility.UrlDecode(entry.Name.Substring(0, entry.Name.Length - ".7z".Length)))
                    {
-                       EncodedName = entry.Name.Substring(0, entry.Name.Length - ".7z".Length),
                        Feed = task.Result.Feed,
                        Index = task.Result.Index
                    }));
