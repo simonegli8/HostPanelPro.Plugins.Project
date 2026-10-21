@@ -560,7 +560,7 @@ public class PluginManager
             installed = GetInstalledPlugins().ToList();
         }
 
-        var autoInstallers = available
+        var autoInstallerPluginsToCheck = available
             .Except(installed)
             .GroupBy(id => id.Name)
             .Select(versions => new PluginId()
@@ -571,7 +571,7 @@ public class PluginManager
                     .FirstOrDefault().Version
             })
             .ToList();
-        var pluginsToInstall = autoInstallers
+        var autoInstallersBinDirectories = autoInstallerPluginsToCheck
             .Select(id => Directory.EnumerateDirectories(Path.Combine(root, AutoDir, id.EncodedId, "bin"))
                 .Select(dir => (Id: id, Directory: dir, Name: Path.GetFileName(dir)))
                 .OrderByDescending(dir => {
@@ -590,39 +590,44 @@ public class PluginManager
                 })
                 .FirstOrDefault())
             .Where(dir => dir.Directory != null)
+            .ToList();
+        var autoInstallersAssemblies = autoInstallersBinDirectories
             .SelectMany(dir => Directory.EnumerateFiles(dir.Directory)
-                .Select(file => (Id: dir.Id, File: file)))
+                .Select(file => (dir.Id, File: file)))
             .Where(file => file.File.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             .Select(file =>
             {
                 try
                 {
-                    return (file.Id, Assembly: Assembly.Load(file.File));
+                    return (file.Id, Assembly: Assembly.LoadFrom(file.File));
                 }
                 catch { return (file.Id, null); }
             })
+            .ToList();
+        var autoInstallers = autoInstallersAssemblies
             .SelectMany(a =>
             {
                 try
                 {
                     return a.Assembly?.GetExportedTypes()
-                         .Where(type => type.IsAssignableFrom(typeof(IAutoInstaller)))
-                         .Select(type => (Id: a.Id, Type: type))
+                         .Where(type => typeof(IAutoInstaller).IsAssignableFrom(type))
+                         .Select(type => (a.Id, Type: type))
                          ?? Array.Empty<(PluginId Id, Type Type)>();
                 }
                 catch { return Array.Empty<(PluginId Id, Type Type)>(); }
             })
-            .Where(type => type.Type != null && type.Type.IsAssignableFrom(typeof(IAutoInstaller)))
             .Select(type =>
             {
                 try
                 {
-                    if (type.Type != null) return (type.Id, Installer: Activator.CreateInstance(type.Type) as IAutoInstaller);
+                    return (type.Id, Installer: Activator.CreateInstance(type.Type) as IAutoInstaller);
                 }
                 catch { }
                 return (type.Id, null);
             })
             .Where(installer => installer.Installer != null)
+            .ToList();
+        var pluginsToInstall = autoInstallers
             .Select(async installer => await installer.Installer.IsPluginRequiredAsync() ? installer.Id : default);
 
         var tasks = new List<Task>();
@@ -1152,7 +1157,7 @@ public class PluginManager
             {
                 try
                 {
-                    return Assembly.Load(a);
+                    return Assembly.LoadFrom(a);
                 }
                 catch { return null; }
             })
