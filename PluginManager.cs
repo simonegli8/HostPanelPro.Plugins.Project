@@ -22,7 +22,7 @@ using System.Diagnostics;
 
 namespace HostPanelPro.Plugins;
 
-
+[Serializable]
 public struct PluginId
 {
     public string Name;
@@ -179,8 +179,10 @@ public class PluginManager
 
     public static async Task InstallAsync(params IEnumerable<string> pluginIds)
     {
+        bool any = false;
         var all = Task.WhenAll(pluginIds.Select(async pluginId =>
         {
+            any = true;
             var id = await new PluginId(pluginId).NewestAsync();
             using (var idlock = await Lock(id))
             {
@@ -217,7 +219,8 @@ public class PluginManager
                         {
                             var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.ServerPath, "Plugins", id.EncodedId));
                             if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
-                            Directory.Move(serverpath, destpath);
+                            Directory.CreateDirectory(destpath);
+                            Directory.Move(serverpath, Path.Combine(destpath, "Server"));
                         }
                     }
                     var eserverpath = Path.Combine(pluginpath, "EnterpriseServer");
@@ -227,11 +230,10 @@ public class PluginManager
                         {
                             var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.EnterpriseServerPath, "Plugins", id.EncodedId));
                             if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
-                            Directory.Move(serverpath, destpath);
+                            Directory.CreateDirectory(destpath);
+                            Directory.Move(eserverpath, Path.Combine(destpath, "EnterpriseServer"));
                         }
                     }
-                    var portalpath = Path.Combine(pluginpath, "Portal");
-                    if (!IsPortal && Directory.Exists(portalpath)) Directory.Delete(portalpath, true);
 
                     PluginsAssemblyLoader.ResetPaths();
 
@@ -254,7 +256,7 @@ public class PluginManager
         }
         finally
         {
-            PluginsChanged?.Invoke();
+            if (any) PluginsChanged?.Invoke();
         }
     }
 
