@@ -38,7 +38,7 @@ public struct PluginId
     [DefaultValue(null)]
     public string Feed;
     [JsonIgnore]
-    public string Url => Feed + $"/{Id}.7z";
+    public string Url => Feed + $"/{PluginManager.PluginsDir}/{Id}.7z";
     [DefaultValue(null)]
     public int? Index;
     [JsonIgnore]
@@ -191,13 +191,13 @@ public class PluginManager
                 if (id.Feed == null) id = await FindAvailablePluginAsync(id.Id);
                 if (id.Name == null) throw new FileNotFoundException($"Plugin {pluginId} not found.");
                 var filepath = Server.MapPath($"~/Plugins/{id.EncodedId}" + file);
-                var pluginpath = filepath.Substring(0, filepath.Length - ".7z".Length);
+                var pluginpath = Path.GetDirectoryName(filepath);
                 if (Directory.Exists(pluginpath)) return;
 
                 // Download plugin
-                var filter = (string file) => !(file.StartsWith("Server") && !IsServer ||
-                        file.StartsWith("EnterpriseServer") && !IsEnterpriseServer ||
-                        file.StartsWith("Portal") && !IsPortal);
+                var filter = (string file) => !(file.StartsWith("Server/") && !IsServer ||
+                        file.StartsWith("EnterpriseServer/") && !IsEnterpriseServer ||
+                        file.StartsWith("Portal/") && !IsPortal);
                 await Download.DownloadFileAndUnzipAsync(id.Url, filepath, filter: filter);
                 File.Delete(filepath);
 
@@ -978,6 +978,25 @@ public class PluginManager
                 CallDotnetBuild(pluginSource, id);
                 files = GetPluginSourceFiles(pluginSource);
             }
+
+            // Update publish date of info json
+            var info = Path.Combine(pluginSource, "Info");
+            if (Directory.Exists(info))
+            {
+                var infofiles = Directory.EnumerateFiles(info, "*.*", SearchOption.TopDirectoryOnly);
+                var infosrc = infofiles.FirstOrDefault(file => file.EndsWith(".json", StringComparison.OrdinalIgnoreCase));
+                if (File.Exists(infosrc))
+                {
+                    var plugininfo = JsonConvert.DeserializeObject<PluginInfo>(File.ReadAllText(infosrc));
+                    var newestFileDate = GetNewestSourceFile(pluginSource);
+                    plugininfo.Published = newestFileDate;
+                    var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+                    var json = JsonConvert.SerializeObject(plugininfo, settings);
+                    File.WriteAllText(infosrc, json);
+                    File.SetLastWriteTimeUtc(infosrc, newestFileDate);
+                }
+            }
+
             int noffiles = 0;
             Console.Write($"Packing {id}.7z ");
             Zip.Zip7zFiles(zip, pluginSource, files, (n, total) =>
