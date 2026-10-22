@@ -11,9 +11,9 @@ namespace HostPanelPro.Plugins
     public class PluginInfo
     {
         [JsonIgnore]
-        public string Id { get; set; }
+        public PluginId Id { get; set; }
         [JsonIgnore]
-        public string Name { get; set; }
+        public string Name => Id.Name;
         [JsonIgnore]
         public string Image { get; set; }
         [JsonIgnore]

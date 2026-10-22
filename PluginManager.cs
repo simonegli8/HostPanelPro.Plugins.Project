@@ -187,6 +187,13 @@ public class PluginManager
                 if (installedPlugins.Contains(id)) return;
                 installedPlugins.Add(id);
 
+                // Uninstall older versions
+                var installed = GetInstalledPlugins()
+                    .Where(p => p.Name == id.Name)
+                    .ToList();
+                if (installed.Any(p => p.Version == id.Version)) return;
+                await Task.WhenAll(installed.Select(async p => UninstallAsync(p.Id))); 
+
                 var file = $"/{id.EncodedId}.7z";
                 if (id.Feed == null) id = await FindAvailablePluginAsync(id.Id);
                 if (id.Name == null) throw new FileNotFoundException($"Plugin {pluginId} not found.");
@@ -295,8 +302,7 @@ public class PluginManager
         var infoFiles = Directory.EnumerateFiles(infodir, "*.*", SearchOption.TopDirectoryOnly);
         var readmeMarkdown = infoFiles.FirstOrDefault(md => md.EndsWith(".md", StringComparison.OrdinalIgnoreCase));
         var info = JsonConvert.DeserializeObject<PluginInfo>(File.ReadAllText(infoFiles.FirstOrDefault(vs => vs.EndsWith(".json"))));
-        info.Id = id.Id;
-        info.Name = id.Name;
+        info.Id = id;
         info.Image = infoFiles.FirstOrDefault(img => IsImage(img));
         info.ReadmeMarkdown = File.Exists(info.ReadmeMarkdown) ? File.ReadAllText(info.ReadmeMarkdown) : "";
         var detailsViewActionControlFile = $"{id.EncodedId}.DetailsView.ascx";
@@ -894,7 +900,7 @@ public class PluginManager
     {
         var get = await Task.WhenAll(GetStringAsync(plugin.ReadmeMarkdown), GetStringAsync(plugin.Info));
         var info = JsonConvert.DeserializeObject<PluginInfo>(get[1]);
-        info.Id = plugin.Id.Id;
+        info.Id = plugin.Id;
         info.Image = plugin.Image;
         info.ReadmeMarkdown = get[0];
         info.IsInstalled = installed?.Contains(plugin.Id) ?? false;
@@ -1178,7 +1184,7 @@ public class PluginManager
         where T : class
     {
         return (assemblies ??
-            $"{plugin.Id}.Server.dll,{plugin.Id}.EnterpriseServer.dll,{plugin.Id}.Portal.dll")
+            $"{plugin.Name}.Server.dll,{plugin.Name}.EnterpriseServer.dll,{plugin.Name}.Portal.dll")
             .Split(',', ';')
             .Select(a => a.Trim())
             .Where(a => !string.IsNullOrEmpty(a))
@@ -1192,7 +1198,7 @@ public class PluginManager
             })
             .Where(a => a != null)
             .SelectMany(a => a.GetExportedTypes())
-            .Where(type => type.IsAssignableFrom(typeof(T)) && filter?.Invoke(type) != false)
+            .Where(type => typeof(T).IsAssignableFrom(type) && filter?.Invoke(type) != false)
             .Select(type => Activator.CreateInstance(type) as T);
     }
 
