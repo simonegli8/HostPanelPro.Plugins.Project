@@ -194,41 +194,47 @@ public class PluginManager
                 var pluginpath = Path.GetDirectoryName(filepath);
                 if (Directory.Exists(pluginpath)) return;
 
-                // Download plugin
-                var filter = (string file) => !(file.StartsWith("Server/") && !IsServer ||
+                try {
+                    // Download plugin
+                    var filter = (string file) => !(file.StartsWith("Server/") && !IsServer ||
                         file.StartsWith("EnterpriseServer/") && !IsEnterpriseServer ||
                         file.StartsWith("Portal/") && !IsPortal);
-                await Download.DownloadFileAndUnzipAsync(id.Url, filepath, filter: filter);
-                File.Delete(filepath);
+                    await Download.DownloadFileAndUnzipAsync(id.Url, filepath, filter: filter).ConfigureAwait(false);
+                    File.Delete(filepath);
 
-                // Handle embedded servers
-                var serverpath = Path.Combine(pluginpath, "Server");
-                if (Directory.Exists(serverpath))
-                {
-                    if (IsServer && (IsEnterpriseServer || IsPortal) && Configuration.ServerPath != null)
+                    // Handle embedded servers
+                    var serverpath = Path.Combine(pluginpath, "Server");
+                    if (Directory.Exists(serverpath))
                     {
-                        var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.ServerPath, "Plugins", id.EncodedId));
-                        if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
-                        Directory.Move(serverpath, destpath);
+                        if (IsServer && (IsEnterpriseServer || IsPortal) && Configuration.ServerPath != null)
+                        {
+                            var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.ServerPath, "Plugins", id.EncodedId));
+                            if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
+                            Directory.Move(serverpath, destpath);
+                        }
                     }
-                }
-                var eserverpath = Path.Combine(pluginpath, "EnterpriseServer");
-                if (Directory.Exists(eserverpath))
-                {
-                    if (IsEnterpriseServer && IsPortal && Configuration.EnterpriseServerPath != null)
+                    var eserverpath = Path.Combine(pluginpath, "EnterpriseServer");
+                    if (Directory.Exists(eserverpath))
                     {
-                        var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.EnterpriseServerPath, "Plugins", id.EncodedId));
-                        if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
-                        Directory.Move(serverpath, destpath);
+                        if (IsEnterpriseServer && IsPortal && Configuration.EnterpriseServerPath != null)
+                        {
+                            var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.EnterpriseServerPath, "Plugins", id.EncodedId));
+                            if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
+                            Directory.Move(serverpath, destpath);
+                        }
                     }
+                    var portalpath = Path.Combine(pluginpath, "Portal");
+                    if (!IsPortal && Directory.Exists(portalpath)) Directory.Delete(portalpath, true);
+
+                    PluginsAssemblyLoader.ResetPaths();
+
+                    // Run installers
+                    await SetupPlugin(pluginId);
+                } catch (Exception ex)
+                {
+                    if (Directory.Exists(pluginpath)) Directory.Delete(pluginpath, true);
+                    throw;
                 }
-                var portalpath = Path.Combine(pluginpath, "Portal");
-                if (!IsPortal && Directory.Exists(portalpath)) Directory.Delete(portalpath, true);
-
-                PluginsAssemblyLoader.ResetPaths();
-
-                // Run installers
-                await SetupPlugin(pluginId);
             }
         }));
         try
@@ -284,7 +290,9 @@ public class PluginManager
     public static PluginInfo GetInstalledPluginInfo(PluginId id)
     {
         var root = Server.MapPath("~/Plugins");
-        var infoFiles = Directory.EnumerateFiles(Path.Combine(root, id.EncodedId, "Info"), "*.*", SearchOption.TopDirectoryOnly);
+        var infodir = Path.Combine(root, id.EncodedId, "Info");
+        if (!Directory.Exists(infodir)) return null;
+        var infoFiles = Directory.EnumerateFiles(infodir, "*.*", SearchOption.TopDirectoryOnly);
         var readmeMarkdown = infoFiles.FirstOrDefault(md => md.EndsWith(".md", StringComparison.OrdinalIgnoreCase));
         var info = JsonConvert.DeserializeObject<PluginInfo>(File.ReadAllText(infoFiles.FirstOrDefault(vs => vs.EndsWith(".json"))));
         info.Id = id.Id;
@@ -317,6 +325,7 @@ public class PluginManager
     public static async Task<bool> SetupPlugin(string pluginId, bool uninstall = false)
     {
         var info = GetInstalledPluginInfo(pluginId);
+        if (info == null) return true;
         var installers = GetPluginHandlers<IPluginInstaller>(info, info.SetupAssemblies,
             type =>
             {
@@ -344,19 +353,20 @@ public class PluginManager
             .Select<IPluginInstaller, Func<Task<bool>>>(installer => uninstall ?
                 async () => await installer.UninstallPluginAsync() :
                 (async () => { await installer.InstallPluginAsync(); return true; }))
-            .Select(func => func());
+            .Select(func => func())
+            .ToList();
+        bool[] success;
         var all = Task.WhenAll(tasks);
         try
         {
-            await all;
-
+            success = await all;
         }
         catch when (all.Exception is not null)
         {
             throw all.Exception;   // AggregateException with all failures
         }
 
-        return tasks.All(t => t.Result);
+        return success.All(t => t);
     }
 
     public static async Task StartupPluginsAsync()

@@ -42,7 +42,7 @@ public class SeekableDownloadStream : System.IO.Stream
 		Progress = progress;
 		Buffer = new FileStream(TmpFile, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.WriteThrough | FileOptions.Asynchronous);
 		Size = Download.GetFileSizeAsync(Url);
-		DownloadComplete = DownloadSequential();
+		DownloadComplete = Task.Run(DownloadSequential);
 	}
 
 
@@ -125,7 +125,7 @@ public class SeekableDownloadStream : System.IO.Stream
 						{
 							if (rented != null) ArrayPool<byte>.Shared.Return(rented);
 						}
-					});
+					}, TaskContinuationOptions.RunContinuationsAsynchronously);
 				Chunks[i] = chunk;
 			}
 		}

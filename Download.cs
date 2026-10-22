@@ -60,7 +60,7 @@ public class Download
     public static async Task<long> GetFileSizeAsync(string url)
     {
         using var request = new HttpRequestMessage(HttpMethod.Head, url);
-        using var response = await PluginManager.Client.SendAsync(request, Cancel.Token);
+        using var response = await PluginManager.Client.SendAsync(request, Cancel.Token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return response.Content.Headers.ContentLength ?? -1;
     }
