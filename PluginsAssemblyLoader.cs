@@ -34,6 +34,7 @@ public class PluginsAssemblyLoader
     public static void Init()
     {
         if (Interlocked.Exchange(ref Initialized, 1) == 1) return;
+        AppDomain.CurrentDomain.AssemblyResolve += Resolve;    
     }
 
     public static string TempFile(string file) => Web.Clients.AssemblyLoader.TempFile(file);
@@ -61,8 +62,7 @@ public class PluginsAssemblyLoader
                     .SelectMany(id => new[] {
                         Path.Combine(root, id.EncodedId, "Server", "bin"),
                         Path.Combine(root, id.EncodedId, "EnterpriseServer", "bin"),
-                        Path.Combine(root, id.EncodedId, "Portal", "bin"),
-                        Path.Combine(root, id.EncodedId, "Server", "AutoInstaller", "bin")
+                        Path.Combine(root, id.EncodedId, "Portal", "bin")
                     }))
                 .Concat(autoInstallers
                     .Select(id => Path.Combine(root, "Plugins", PluginManager.AutoDir, id.EncodedId, "bin"))
@@ -123,6 +123,7 @@ public class PluginsAssemblyLoader
                 };
             })
             .Where(p => File.Exists(p.FullName));
+
 
             foreach (var p in dlls)
             {

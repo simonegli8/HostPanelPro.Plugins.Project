@@ -194,7 +194,7 @@ public class PluginManager
                     .Where(p => p.Name == id.Name)
                     .ToList();
                 if (installed.Any(p => p.Version == id.Version)) return;
-                await Task.WhenAll(installed.Select(async p => UninstallAsync(p.Id))); 
+                await Task.WhenAll(installed.Select(async p => UninstallAsync(p.Id)));
 
                 var file = $"/{id.EncodedId}.7z";
                 if (id.Feed == null) id = await FindAvailablePluginAsync(id.Id);
@@ -203,7 +203,8 @@ public class PluginManager
                 var pluginpath = Path.GetDirectoryName(filepath);
                 if (Directory.Exists(pluginpath)) return;
 
-                try {
+                try
+                {
                     // Download plugin
                     var filter = (string file) => !(file.StartsWith("Server/") && !IsServer ||
                         file.StartsWith("EnterpriseServer/") && !IsEnterpriseServer ||
@@ -212,6 +213,7 @@ public class PluginManager
                     File.Delete(filepath);
 
                     // Handle embedded servers
+                    var info = Path.Combine(pluginpath, "Info");
                     var serverpath = Path.Combine(pluginpath, "Server");
                     if (Directory.Exists(serverpath))
                     {
@@ -219,7 +221,10 @@ public class PluginManager
                         {
                             var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.ServerPath, "Plugins", id.EncodedId));
                             if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
-                            Directory.CreateDirectory(destpath);
+                            CopyDirectory(pluginpath, destpath, file => file is not DirectoryInfo ||
+                                !file.Name.Equals("Server", StringComparison.OrdinalIgnoreCase) &&
+                                !file.Name.Equals("EnterpriseServer", StringComparison.OrdinalIgnoreCase) ||
+                                !file.Name.Equals("Portal", StringComparison.OrdinalIgnoreCase));
                             Directory.Move(serverpath, Path.Combine(destpath, "Server"));
                         }
                     }
@@ -230,7 +235,10 @@ public class PluginManager
                         {
                             var destpath = Path.GetFullPath(Path.Combine(Server.MapPath("~"), Configuration.EnterpriseServerPath, "Plugins", id.EncodedId));
                             if (Directory.Exists(destpath)) Directory.Delete(destpath, true);
-                            Directory.CreateDirectory(destpath);
+                            CopyDirectory(pluginpath, destpath, file => file is not DirectoryInfo ||
+                                !file.Name.Equals("Server", StringComparison.OrdinalIgnoreCase) &&
+                                !file.Name.Equals("EnterpriseServer", StringComparison.OrdinalIgnoreCase) &&
+                                !file.Name.Equals("Portal", StringComparison.OrdinalIgnoreCase));
                             Directory.Move(eserverpath, Path.Combine(destpath, "EnterpriseServer"));
                         }
                     }
@@ -239,7 +247,8 @@ public class PluginManager
 
                     // Run installers
                     await SetupPlugin(pluginId);
-                } catch (Exception ex)
+                }
+                catch (Exception ex)
                 {
                     if (Directory.Exists(pluginpath)) Directory.Delete(pluginpath, true);
                     throw;
@@ -257,6 +266,14 @@ public class PluginManager
         finally
         {
             if (any) PluginsChanged?.Invoke();
+        }
+    }
+
+    private void CopyCommonDirectories(string source, string destpath)
+    {
+        foreach (var dir in Directory.EnumerateDirectories(source))
+        {
+
         }
     }
 
@@ -339,7 +356,7 @@ public class PluginManager
             {
                 if (uninstall)
                 {
-                    calledInstallers.Clear();
+                    if (calledInstallers.Contains(type)) calledInstallers.Remove(type);
                     if (!calledUninstallers.Contains(type))
                     {
                         calledUninstallers.Add(type);
@@ -348,7 +365,7 @@ public class PluginManager
                 }
                 else
                 {
-                    calledUninstallers.Clear();
+                    if (calledUninstallers.Contains(type)) calledUninstallers.Remove(type);
                     if (!calledInstallers.Contains(type))
                     {
                         calledInstallers.Add(type);
@@ -386,6 +403,7 @@ public class PluginManager
         var infos = GetAllInstalledPluginInfos();
 
         var installers = infos
+            .Where(info => info is not null)
             .SelectMany(info => GetPluginHandlers<IPluginStartup>(info, info.StartupAssemblies));
         var tasks = installers.Select(installer => installer.StartPluginAsync());
         var all = Task.WhenAll(tasks);
@@ -405,6 +423,7 @@ public class PluginManager
         var infos = GetAllInstalledPluginInfos();
 
         var installers = infos
+            .Where(info => info is not null)
             .SelectMany(info => GetPluginHandlers<IPluginStartup>(info, info.StartupAssemblies));
         foreach (var installer in installers)
         {
@@ -435,10 +454,12 @@ public class PluginManager
             var autoInstallerInstalledConfig = Path.Combine(auto, "auto-installers.installed.json");
             using (var @lock = await AsyncLock.LockAsync())
             {
-                if (File.Exists(autoInstallerInstalledConfig)) {
+                if (File.Exists(autoInstallerInstalledConfig))
+                {
                     var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
                     installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
-                } else Directory.CreateDirectory(auto);
+                }
+                else Directory.CreateDirectory(auto);
                 var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
                 File.WriteAllText(autoInstallerAvailableConfig, JsonConvert.SerializeObject(available, settings));
             }
@@ -469,7 +490,8 @@ public class PluginManager
         var autoInstallerInstalledConfig = Path.Combine(auto, "auto-installers.installed.json");
         using (var @lock = await AsyncLock.LockAsync())
         {
-            if (File.Exists(autoInstallerInstalledConfig)) {
+            if (File.Exists(autoInstallerInstalledConfig))
+            {
                 var installedJson = File.ReadAllText(autoInstallerInstalledConfig);
                 installed = JsonConvert.DeserializeObject<List<PluginId>>(installedJson);
             }
@@ -498,7 +520,8 @@ public class PluginManager
             await Download.DownloadFileAndUnzipAsync(url, tempFile, pluginpath);
 
             PluginsAssemblyLoader.ResetPaths();
-        } catch (Exception ex)
+        }
+        catch (Exception ex)
         {
             // Remove from installed cache
             using (var @lock = await AsyncLock.LockAsync())
@@ -555,6 +578,7 @@ public class PluginManager
     {
         // TODO add embedded server
         var root = Server.MapPath($"~/Plugins/{AutoDir}");
+        if (!Directory.Exists(root)) return Enumerable.Empty<PluginId>();
         return Directory.EnumerateDirectories(root, "*.*", SearchOption.TopDirectoryOnly)
             .Select(path => Path.GetFileName(path))
             .Where(id => !id.StartsWith("."))
@@ -592,7 +616,8 @@ public class PluginManager
         var autoInstallersBinDirectories = autoInstallerPluginsToCheck
             .Select(id => Directory.EnumerateDirectories(Path.Combine(root, AutoDir, id.EncodedId, "bin"))
                 .Select(dir => (Id: id, Directory: dir, Name: Path.GetFileName(dir)))
-                .OrderByDescending(dir => {
+                .OrderByDescending(dir =>
+                {
                     // Sort net version directories in correct order, so newer versions come first
                     var m = Regex.Match(dir.Name, @"[0-9]+(?:\.[0-9]+)?");
                     if (m.Success) return double.Parse(m.Value);
@@ -746,7 +771,8 @@ public class PluginManager
             using var response = await Client.SendAsync(request, Cancel.Token);
             if (!response.IsSuccessStatusCode) return "";
             return await response.Content.ReadAsStringAsync();
-        } catch
+        }
+        catch
         {
             throw;
         }
@@ -1048,7 +1074,8 @@ public class PluginManager
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden
         };
-        p.ErrorDataReceived += (sender, arg) => {
+        p.ErrorDataReceived += (sender, arg) =>
+        {
             if (arg.Data != null) Console.Error.WriteLine(arg.Data);
         };
         p.OutputDataReceived += (sender, arg) =>
@@ -1169,7 +1196,7 @@ public class PluginManager
             File.Move(zipFile, dest);
 #endif
         }
-        
+
         if (archive) Directory.Delete(temp, true);
         if (!web) // Publish index.html files
         {
@@ -1194,24 +1221,29 @@ public class PluginManager
             {
                 try
                 {
-                    return Assembly.LoadFrom(a);
+                    return Assembly.Load(a);
                 }
-                catch { return null; }
+                catch (Exception ex) { return null; }
             })
             .Where(a => a != null)
-            .SelectMany(a => a.GetExportedTypes())
-            .Where(type => typeof(T).IsAssignableFrom(type) && filter?.Invoke(type) != false)
+            .SelectMany(a => a.GetExportedTypes()
+                .Where(type => typeof(T).IsAssignableFrom(type) && filter?.Invoke(type) != false))
             .Select(type => Activator.CreateInstance(type) as T);
     }
 
-    public static void CopyDirectory(string source, string destination)
+    public static void CopyDirectory(string source, string destination, Func<FileSystemInfo, bool> filter = null)
     {
+        var dir = new DirectoryInfo(source);
+        if (!dir.Exists) return;
+
         Directory.CreateDirectory(destination);
 
-        foreach (var file in Directory.GetFiles(source))
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
+        foreach (var file in dir.EnumerateFiles()
+            .Where(f => filter?.Invoke(f) != false))
+            file.CopyTo(Path.Combine(destination, file.Name), true);
 
-        foreach (var directory in Directory.GetDirectories(source))
-            CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+        foreach (var directory in dir.EnumerateDirectories()
+            .Where(f => filter?.Invoke(f) != false))
+            CopyDirectory(directory.FullName, Path.Combine(destination, directory.Name));
     }
 }
