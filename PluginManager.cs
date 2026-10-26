@@ -248,7 +248,7 @@ public class PluginManager
                     // Run installers
                     await SetupPlugin(pluginId);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     if (Directory.Exists(pluginpath)) Directory.Delete(pluginpath, true);
                     throw;
@@ -521,7 +521,7 @@ public class PluginManager
 
             PluginsAssemblyLoader.ResetPaths();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // Remove from installed cache
             using (var @lock = await AsyncLock.LockAsync())
@@ -1223,7 +1223,7 @@ public class PluginManager
                 {
                     return Assembly.Load(a);
                 }
-                catch (Exception ex) { return null; }
+                catch (Exception) { return null; }
             })
             .Where(a => a != null)
             .SelectMany(a => a.GetExportedTypes()
