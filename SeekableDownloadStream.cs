@@ -59,7 +59,7 @@ public class SeekableDownloadStream : System.IO.Stream
 	// continuation runs, which a reader blocked on Size.Result can overtake.
 	void EnsureChunks(long size)
 	{
-		if (Chunks.Length == 0 && size > 0)
+		if ((Chunks == null || Chunks.Length == 0) && size > 0)
 			Chunks = new (long Position, int Size, Task<Task> Data)[(int)(size / ChunkSize) + (size % ChunkSize == 0 ? 0 : 1)];
 	}
 	bool GetChunk(long size, int i)
