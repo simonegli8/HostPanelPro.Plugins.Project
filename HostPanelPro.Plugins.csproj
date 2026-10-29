@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!--<TargetFramework>netstandard2.0;net10.0</TargetFramework>-->
+        <!--<TargetFramework>netstandard2.0;$(netlatest)</TargetFramework>-->
         <IsPluginsProject Condition="Exists('../../Publish')">true</IsPluginsProject>
         <PackAsTool Condition="$(PackToTool) != 'true' And $(IsPluginsProject) != 'true'">false</PackAsTool>
         <PackAsTool Condition="$(PackToTool) == 'true' Or $(IsPluginsProject) == 'true'">true</PackAsTool>
-        <TargetFrameworks Condition="$(PackAsTool) == 'true'">net10.0</TargetFrameworks>
+        <TargetFrameworks Condition="$(PackAsTool) == 'true'">$(netlatest)</TargetFrameworks>
 		<TargetFrameworks Condition="$(PackAsTool) != 'true'">netstandard2.0</TargetFrameworks>
         <LangVersion>14</LangVersion>
         <Nullable>disable</Nullable>
@@ -33,7 +33,7 @@
         <Description>A tool to pack plugins for HostPanelPro</Description>
         <Copyright>Estrellas de Esperanza</Copyright>
         <PackageProjectUrl>https://github.com/simonegli8/WebHostingCP</PackageProjectUrl>
-        <PackageReadmeFile Condition="$(PackAsTool) == 'true'">tools/net10.0/any/README.md</PackageReadmeFile>
+        <PackageReadmeFile Condition="$(PackAsTool) == 'true'">tools/$(netlatest)/any/README.md</PackageReadmeFile>
         <PackageReadmeFile Condition="$(PackAsTool) != 'true'">README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/simonegli8/WebHostingCP</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
@@ -58,11 +58,11 @@
         <PackageReference Include="LibArchive.Net" Version="0.3.1" />
         <PackageReference Include="Markdig" Version="1.5.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-        <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
+        <PackageReference Include="System.Security.Cryptography.Xml" Version="$(netversion)" />
     </ItemGroup>
 
     <ItemGroup Condition="$(TargetFramework) == 'netstandard2.0'">
-        <PackageReference Include="System.Linq.AsyncEnumerable" Version="10.0.13" />
+        <PackageReference Include="System.Linq.AsyncEnumerable" Version="$(netversion)" />
     </ItemGroup>
 
     <ItemGroup Condition="$(PackAsTool) != 'true'">
@@ -77,7 +77,7 @@
     
     <ItemGroup>
         <None Condition="$(PackAsTool) != 'true'" Include="README.md" Pack="true" PackagePath="/" />
-        <None Condition="$(PackAsTool) == 'true'" Include="README.md" Pack="true" PackagePath="/tools/net10.0/any/" />
+        <None Condition="$(PackAsTool) == 'true'" Include="README.md" Pack="true" PackagePath="/tools/$(netlatest)/any/" />
     </ItemGroup>
 
 </Project>

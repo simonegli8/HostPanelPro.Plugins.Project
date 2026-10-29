@@ -628,7 +628,7 @@ public class PluginManager
                     var name = dir.Name;
                     return OSInfo.IsNetFX && name.StartsWith("net48") ||
                         OSInfo.IsCore &&
-                        (name == "net10.0" || name == "net11" || name == "net12" || name == "net13" || name == "netstandard2.1") ||
+                        (name == "net10.0" || name == "net11.0" || name == "net12.0" || name == "net13.0" || name == "netstandard2.1") ||
                         name == "netstandard2.0";
                 })
                 .FirstOrDefault())
