@@ -51,7 +51,7 @@ public class SeekableDownloadStream : System.IO.Stream
 	async Task<long> DownloadChunkAsync(int position, int count, byte[] buffer)
 	{
 		var start = DateTime.Now;
-		var size = await Download.DownloadFileChunkAsync(Url, position, count, buffer);
+		var size = await Download.DownloadFileChunkAsync(Url, position, count, buffer).ConfigureAwait(false);
 		DownloadTime += DateTime.Now - start;
 		return size;
 	}
@@ -95,14 +95,14 @@ public class SeekableDownloadStream : System.IO.Stream
 						var rented = buffer;
 						try
 						{
-							using (var iolock = await IOLock.LockAsync())
+							using (var iolock = await IOLock.LockAsync().ConfigureAwait(false))
 							{
 								if (Buffer != null)
 								{
 									if (Buffer.Position != chunk.Position) Buffer.Position = chunk.Position;
 									long length = task.Result;
-									await Buffer.WriteAsync(rented, 0, (int)length, Cancel.Token);
-									await Buffer.FlushAsync(Cancel.Token);
+									await Buffer.WriteAsync(rented, 0, (int)length, Cancel.Token).ConfigureAwait(false);
+									await Buffer.FlushAsync(Cancel.Token).ConfigureAwait(false);
 									//Buffer.Flush(true);
 
 									/*var tmpbuf = new byte[length];
@@ -134,7 +134,7 @@ public class SeekableDownloadStream : System.IO.Stream
 
 	public async Task DownloadSequential()
 	{
-		var size = await Size!;
+		var size = await Size!.ConfigureAwait(false);
 		using (ChunkLock.Lock()) EnsureChunks(size);
 		long downloaded = 0;
 		for (int i = 0; i < Chunks.Length; i++)
@@ -142,7 +142,7 @@ public class SeekableDownloadStream : System.IO.Stream
 			if (Cancel.IsCancellationRequested) break;
 
 			GetChunk(size, i);
-			if (Chunks[i].Data != null) await Chunks[i].Data;
+			if (Chunks[i].Data != null) await Chunks[i].Data.ConfigureAwait(false);
 
 			downloaded += Chunks[i].Size;
 			Progress?.Invoke(Math.Min(downloaded, size), size);
@@ -208,7 +208,7 @@ public class SeekableDownloadStream : System.IO.Stream
 
 	public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
 	{
-		var size = await Size;
+		var size = await Size.ConfigureAwait(false);
 		// EOF guard
 		if (Position >= size) return 0;
 
@@ -224,12 +224,12 @@ public class SeekableDownloadStream : System.IO.Stream
 			if (Position + chunkcount > size) chunkcount = (int)(size - Position);
 			if (offset + chunkcount > buffer.Length) chunkcount = buffer.Length - offset;
 			if (chunkcount <= 0) break;
-			await chunk.Data.Unwrap();
-			using (var iolock = await IOLock.LockAsync())
+			await chunk.Data.Unwrap().ConfigureAwait(false);
+			using (var iolock = await IOLock.LockAsync().ConfigureAwait(false))
 			{
 				if (Buffer == null) return 0;
 				if (Buffer.Position != bufpos) Buffer.Seek(bufpos, SeekOrigin.Begin);
-				nread += nreadchunk = await Buffer.ReadAsync(buffer, offset, chunkcount, cancellationToken);
+				nread += nreadchunk = await Buffer.ReadAsync(buffer, offset, chunkcount, cancellationToken).ConfigureAwait(false);
 				Position += nreadchunk;
 			}
 			count -= nreadchunk;
