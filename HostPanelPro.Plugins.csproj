@@ -54,15 +54,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="EstrellasDeEsperanza.AsyncLock" Version="4.2.1" />
-        <PackageReference Include="LibArchive.Net" Version="0.3.1" />
-        <PackageReference Include="Markdig" Version="1.5.0" />
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-        <PackageReference Include="System.Security.Cryptography.Xml" Version="$(netlib)" />
+        <PackageReference Include="EstrellasDeEsperanza.AsyncLock" />
+        <PackageReference Include="LibArchive.Net" />
+        <PackageReference Include="Markdig" />
+        <PackageReference Include="Newtonsoft.Json" />
+        <PackageReference Include="System.Security.Cryptography.Xml" />
     </ItemGroup>
 
     <ItemGroup Condition="$(TargetFramework) == 'netstandard2.0'">
-        <PackageReference Include="System.Linq.AsyncEnumerable" Version="$(netlib)" />
+        <PackageReference Include="System.Linq.AsyncEnumerable" />
     </ItemGroup>
 
     <ItemGroup Condition="$(PackAsTool) != 'true'">
